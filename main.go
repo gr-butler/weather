@@ -5,7 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/d2r2/go-bsbmp"
+	"./bme280"
+
 	"github.com/d2r2/go-i2c"
 	logger "github.com/d2r2/go-logger"
 )
@@ -15,8 +16,8 @@ var lg = logger.NewPackageLogger("main",
 	// logger.InfoLevel,
 )
 
-type bus struct {
-	i2cbus *i2c.I2C
+type sensors struct {
+	myBme *bme280.Bme280
 }
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	}
 	defer myi2c.Close()
 
-	b := bus{i2cbus: myi2c}
+	b := bme280.Bme280{i2cbus: myi2c}
 
 	// Uncomment/comment next lines to suppress/increase verbosity of output
 	logger.ChangePackageLogLevel("i2c", logger.InfoLevel)
@@ -39,68 +40,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(":80", nil))
 }
 
-func (b *bus) handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, read(b.i2cbus))
-}
-
-func read(i2c *i2c.I2C) string {
-
-	// sensor, err := bsbmp.NewBMP(bsbmp.BMP180, i2c) // signature=0x55
-	// sensor, err := bsbmp.NewBMP(bsbmp.BMP280, i2c) // signature=0x58
-	sensor, err := bsbmp.NewBMP(bsbmp.BME280, i2c) // signature=0x60
-	// sensor, err := bsbmp.NewBMP(bsbmp.BMP388, i2c) // signature=0x50
-	if err != nil {
-		lg.Fatal(err)
-	}
-
-	id, err := sensor.ReadSensorID()
-	if err != nil {
-		lg.Fatal(err)
-	}
-	lg.Infof("This Bosch Sensortec sensor has signature: 0x%x", id)
-
-	err = sensor.IsValidCoefficients()
-	if err != nil {
-		lg.Fatal(err)
-	}
-
-	// Read temperature in celsius degree
-	t, err := sensor.ReadTemperatureC(bsbmp.ACCURACY_STANDARD)
-	if err != nil {
-		lg.Fatal(err)
-	}
-	lg.Infof("Temprature = %v*C", t)
-
-	// Read atmospheric pressure in pascal
-	p, err := sensor.ReadPressurePa(bsbmp.ACCURACY_LOW)
-	if err != nil {
-		lg.Fatal(err)
-	}
-	lg.Infof("Pressure = %v Pa", p)
-
-	// Read atmospheric pressure in mmHg
-	pm, err := sensor.ReadPressureMmHg(bsbmp.ACCURACY_LOW)
-	if err != nil {
-		lg.Fatal(err)
-	}
-	lg.Infof("Pressure = %v mmHg", pm)
-
-	// Read atmospheric pressure in mmHg
-	supported, h1, err := sensor.ReadHumidityRH(bsbmp.ACCURACY_LOW)
-	if supported {
-		if err != nil {
-			lg.Fatal(err)
-		}
-		lg.Infof("Humidity = %v %%", h1)
-	}
-
-	// Read atmospheric altitude in meters above sea level, if we assume
-	// that pressure at see level is equal to 101325 Pa.
-	a, err := sensor.ReadAltitude(bsbmp.ACCURACY_LOW)
-	if err != nil {
-		lg.Fatal(err)
-	}
-	lg.Infof("Altitude = %v m", a)
-
-	return fmt.Sprintf("Temp [%v], Hum [%v], Pressure [%v]Pa ([%v] mmHg)", t, h1, p, pm)
+func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, s.myBme.Read())
 }
