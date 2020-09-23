@@ -13,6 +13,7 @@ var lg = logger.NewPackageLogger("main",
 	// logger.InfoLevel,
 )
 
+//Bme280 the sensor
 type Bme280 struct {
 	I2cbus *i2c.I2C
 }
