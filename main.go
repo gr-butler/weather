@@ -20,6 +20,7 @@ import (
 
 type sensors struct {
 	myBme *bme280.Bme280
+	mcp *mcp9808.Dev
 }
 
 type webdata struct {
@@ -45,7 +46,8 @@ func main() {
 	defer myi2c.Close()
 
 	b := bme280.Bme280{I2cbus: myi2c}
-	s := sensors{myBme: &b}
+	m := initMCP9808()
+	s := sensors{myBme: &b, mcp: m}
 
 	http.HandleFunc("/", s.handler)
 	log.Fatal(http.ListenAndServe(":80", nil))
@@ -56,7 +58,7 @@ func main() {
 func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	sd := s.myBme.Read()
 
-	t1 := getTemp()
+	t1 := getTemp(s.mcp)
 
 	wd := webdata {
 		Temp: sd.Temp,
@@ -67,7 +69,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(wd)
 }
 
-func getTemp() float64 {
+func initMCP9808() *mcp9808.Dev {
 	if _, err := host.Init(); err != nil {
 		logger.Fatal(err)
 	}
@@ -93,9 +95,16 @@ func getTemp() float64 {
 	if err != nil {
 		logger.Fatalf("failed to open new sensor: %v", err)
 	}
+	return sensor
+}
 
-
+func getTemp(sensor *mcp9808.Dev) float64 {
+	
 	t, err := sensor.SenseTemp()
+	if err != nil {
+		logger.Errorf("sensor reading error: %v", err)
+		return -1000.0
+	}
 
 	// Read values from sensor every second.
 	// everySecond := time.Tick(time.Second)
