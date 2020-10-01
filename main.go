@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"log"
 	"net/http"
+	"time"
 
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
@@ -13,6 +15,8 @@ import (
 	"periph.io/x/periph/host"
 
 	logger "github.com/sirupsen/logrus"
+	"periph.io/x/periph/conn/gpio"
+	"periph.io/x/periph/conn/gpio/gpioreg"
 )
 
 
@@ -33,8 +37,14 @@ type webdata struct {
 func main() {
 
 	logger.Info("Initialize sensors...")
-	m, d, bus := initMCP9808()
+	m, d, tipbucket, bus := initMCP9808()
 	defer bus.Close()
+	go monitorGPIO(tipbucket)
+
+	ticker := time.NewTicker(60 * time.Second)
+	
+	go countBucketTips(ticker)
+	
 	s := sensors{bme: d, mcp: m}
 	http.HandleFunc("/", s.handler)
 	logger.Info("Starting webservice...")
@@ -68,7 +78,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Write(js)
 }
 
-func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, i2c.BusCloser) {
+func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, gpio.PinIO, i2c.BusCloser) {
 	if _, err := host.Init(); err != nil {
 		logger.Fatal(err)
 	}
@@ -97,6 +107,37 @@ func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, i2c.BusCloser) {
 	if err != nil {
 		logger.Fatalf("failed to open new sensor: %v", err)
 	}
-	return sensor, d, bus
+
+	// Lookup a pin by its number:
+    p := gpioreg.ByName("GPIO17")
+    if p == nil {
+        log.Fatal("Failed to find GPIO17")
+    }
+
+    logger.Infof("%s: %s\n", p, p.Function())
+
+	if err = p.In(gpio.PullUp, gpio.BothEdges); err != nil {
+        log.Fatal(err)
+	}
+	
+	return sensor, d, p, bus
 }
 
+func monitorGPIO(p gpio.PinIO) {
+	logger.Info("Starting tip bucket")
+	for {
+		p.WaitForEdge(-1)
+		if p.Read() == gpio.Low {
+			logger.Info("Bucket tip")
+		}
+    }
+}
+
+func countBucketTips(ticker *time.Ticker) {
+        for {
+            select {
+            case t := <-ticker.C:
+                logger.Infof("Tick at %v", t)
+            }
+        }
+}
