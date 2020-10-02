@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"math"
 	"net/http"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 	"periph.io/x/periph/conn/gpio/gpioreg"
 )
 
+const mmPerBucket float64 = 0.3
+
 type sensors struct {
 	mcp   *mcp9808.Dev
 	bme   *bmxx80.Dev
@@ -31,6 +34,8 @@ type webdata struct {
 	Temp1    float64 `json:"temp1_C"`
 	Humidity float64 `json:"humidity_RH"`
 	Pressure float64 `json:"pressure_hPa"`
+	Rain_hr  float64 `json:"rain_mm_hr"`
+	Rain_min float64 `json:"rain_mm_min"`
 }
 
 func main() {
@@ -67,6 +72,8 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 		Temp1:    e.Temperature.Celsius(),
 		Humidity: float64(em.Humidity) / float64(physic.PercentRH),
 		Pressure: float64(em.Pressure) / (10 * float64(physic.Pascal)),
+		Rain_hr:  s.getMMLastHour(),
+		Rain_min: s.getMMLastMin(),
 	}
 
 	js, err := json.Marshal(wd)
@@ -126,7 +133,7 @@ func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 	for {
 		(*p).WaitForEdge(-1)
 		if (*p).Read() == gpio.Low {
-			logger.Info("Bucket tip")
+			logger.Debug("Bucket tip")
 			s.count++
 		}
 	}
@@ -134,13 +141,31 @@ func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 
 func (s *sensors) countBucketTips() {
 	for x := range time.Tick(time.Minute) {
-		logger.Infof("Tick at %v", x)
-		min := x.Minute()
+		logger.Debugf("Tick at %v", x)
+		min := x.Minute() - 1
+		logger.Debugf("Tick at min [%v] with [%v] tips", min, s.count)
 		// store the count for the last minute
 		s.btips[min] = s.count
 		// clear the next one
+		if (min == 59){
+			min = 0
+		}
 		s.btips[min + 1] = -1 // use -1 so I know this is the head of the buffer
 		// reset the counter
 		s.count = 0 
 	}
+}
+
+func (s *sensors) getMMLastHour() float64{
+	total := 0
+	for _, x := range s.btips {
+		if x > 0 {
+			total += x
+		}
+	}
+	return math.Round(float64(total) * mmPerBucket * 100) / 100
+}
+
+func (s *sensors) getMMLastMin() float64{
+	return math.Round(float64(s.count) * mmPerBucket * 100) / 100
 }
