@@ -142,7 +142,7 @@ func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 func (s *sensors) countBucketTips() {
 	for x := range time.Tick(time.Minute) {
 		logger.Debugf("Tick at %v", x)
-		min := x.Minute() - 1
+		min := x.Minute()
 		logger.Debugf("Tick at min [%v] with [%v] tips", min, s.count)
 		// store the count for the last minute
 		s.btips[min] = s.count
