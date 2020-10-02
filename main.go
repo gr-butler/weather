@@ -19,37 +19,36 @@ import (
 	"periph.io/x/periph/conn/gpio/gpioreg"
 )
 
-
 type sensors struct {
-	mcp *mcp9808.Dev
-	bme *bmxx80.Dev
+	mcp   *mcp9808.Dev
+	bme   *bmxx80.Dev
+	btips []int
+	count int
 }
 
 type webdata struct {
-	Temp float64 `json:"temp_C"`
-	Temp1 float64 `json:"temp1_C"`
+	Temp     float64 `json:"temp_C"`
+	Temp1    float64 `json:"temp1_C"`
 	Humidity float64 `json:"humidity_RH"`
 	Pressure float64 `json:"pressure_hPa"`
 }
-
-
 
 func main() {
 
 	logger.Info("Initialize sensors...")
 	m, d, tipbucket, bus := initMCP9808()
-	defer bus.Close()
-	go monitorGPIO(tipbucket)
+	defer (*bus).Close()
 
-	ticker := time.NewTicker(60 * time.Second)
-	
-	go countBucketTips(ticker)
-	
-	s := sensors{bme: d, mcp: m}
+	tips := make([]int, 60)
+	s := sensors{bme: d, mcp: m, btips: tips, count: 0}
+
+	go s.countBucketTips()
+	go s.monitorGPIO(tipbucket)
+
 	http.HandleFunc("/", s.handler)
 	logger.Info("Starting webservice...")
 	logger.Fatal(http.ListenAndServe(":80", nil))
-	
+
 	logger.Info("Exiting...")
 }
 
@@ -62,10 +61,10 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	em := physic.Env{}
 	s.bme.Sense(&em)
 	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
-	
-	wd := webdata {
-		Temp: em.Temperature.Celsius(),
-		Temp1: e.Temperature.Celsius(),
+
+	wd := webdata{
+		Temp:     em.Temperature.Celsius(),
+		Temp1:    e.Temperature.Celsius(),
 		Humidity: float64(em.Humidity) / float64(physic.PercentRH),
 		Pressure: float64(em.Pressure) / (10 * float64(physic.Pascal)),
 	}
@@ -78,7 +77,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Write(js)
 }
 
-func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, gpio.PinIO, i2c.BusCloser) {
+func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, *gpio.PinIO, *i2c.BusCloser) {
 	if _, err := host.Init(); err != nil {
 		logger.Fatal(err)
 	}
@@ -92,16 +91,15 @@ func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, gpio.PinIO, i2c.BusCloser) {
 	if err != nil {
 		logger.Fatalf("failed to open I²C: %v", err)
 	}
-	
+
 	logger.Info("Starting BMP280 reader...")
-	d, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
+	bme, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
 	if err != nil {
 		logger.Fatalf("failed to initialize bme280: %v", err)
 	}
 
-
 	logger.Info("Starting MCP9808 Temperature Sensor")
-	
+
 	// Create a new temperature sensor a sense with default options.
 	sensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *address})
 	if err != nil {
@@ -109,35 +107,40 @@ func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, gpio.PinIO, i2c.BusCloser) {
 	}
 
 	// Lookup a pin by its number:
-    p := gpioreg.ByName("GPIO17")
-    if p == nil {
-        log.Fatal("Failed to find GPIO17")
-    }
-
-    logger.Infof("%s: %s\n", p, p.Function())
-
-	if err = p.In(gpio.PullUp, gpio.BothEdges); err != nil {
-        log.Fatal(err)
+	pin := gpioreg.ByName("GPIO17")
+	if pin == nil {
+		log.Fatal("Failed to find GPIO17")
 	}
-	
-	return sensor, d, p, bus
+
+	logger.Infof("%s: %s\n", pin, pin.Function())
+
+	if err = pin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+		log.Fatal(err)
+	}
+
+	return sensor, bme, &pin, &bus
 }
 
-func monitorGPIO(p gpio.PinIO) {
+func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 	logger.Info("Starting tip bucket")
 	for {
-		p.WaitForEdge(-1)
-		if p.Read() == gpio.Low {
+		(*p).WaitForEdge(-1)
+		if (*p).Read() == gpio.Low {
 			logger.Info("Bucket tip")
+			s.count++
 		}
-    }
+	}
 }
 
-func countBucketTips(ticker *time.Ticker) {
-        for {
-            select {
-            case t := <-ticker.C:
-                logger.Infof("Tick at %v", t)
-            }
-        }
+func (s *sensors) countBucketTips() {
+	for x := range time.Tick(time.Minute) {
+		logger.Infof("Tick at %v", x)
+		min := x.Minute()
+		// store the count for the last minute
+		s.btips[min] = s.count
+		// clear the next one
+		s.btips[min + 1] = -1 // use -1 so I know this is the head of the buffer
+		// reset the counter
+		s.count = 0 
+	}
 }
