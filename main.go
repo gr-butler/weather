@@ -42,7 +42,7 @@ type webdata struct {
 
 func main() {
 
-	logger.Info("Initialize sensors...")
+	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	m, d, tipbucket, bus := initMCP9808()
 	defer (*bus).Close()
 
