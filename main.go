@@ -27,15 +27,17 @@ type sensors struct {
 	bme   *bmxx80.Dev
 	btips []int
 	count int
+	lastTip time.Time
 }
 
 type webdata struct {
-	Temp     float64 `json:"temp_C"`
-	Temp1    float64 `json:"temp1_C"`
-	Humidity float64 `json:"humidity_RH"`
-	Pressure float64 `json:"pressure_hPa"`
-	Rain_hr  float64 `json:"rain_mm_hr"`
-	Rain_min float64 `json:"rain_mm_min"`
+	Temp       float64 `json:"temp_C"`
+	Temp1      float64 `json:"temp1_C"`
+	Humidity   float64 `json:"humidity_RH"`
+	Pressure   float64 `json:"pressure_hPa"`
+	PressureHg float64 `json:"pressure_mmHg"`
+	RainHr     float64 `json:"rain_mm_hr"`
+	LastTip    string  `json:"last_tip"`
 }
 
 func main() {
@@ -68,12 +70,13 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
 
 	wd := webdata{
-		Temp:     em.Temperature.Celsius(),
-		Temp1:    e.Temperature.Celsius(),
-		Humidity: float64(em.Humidity) / float64(physic.PercentRH),
-		Pressure: float64(em.Pressure) / (10 * float64(physic.Pascal)),
-		Rain_hr:  s.getMMLastHour(),
-		Rain_min: s.getMMLastMin(),
+		Temp:       em.Temperature.Celsius(),
+		Temp1:      e.Temperature.Celsius(),
+		Humidity:   math.Round(float64(em.Humidity) / float64(physic.PercentRH)),
+		Pressure:   math.Round(float64(em.Pressure) / float64(100 * physic.Pascal)),
+		PressureHg: math.Round(float64(em.Pressure) / float64(physic.Pascal * 133)),
+		RainHr:     s.getMMLastHour(),
+		LastTip:    s.lastTip.Format(time.RFC822),
 	}
 
 	js, err := json.Marshal(wd)
@@ -119,7 +122,7 @@ func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, *gpio.PinIO, *i2c.BusCloser) {
 		log.Fatal("Failed to find GPIO17")
 	}
 
-	logger.Infof("%s: %s\n", pin, pin.Function())
+	logger.Infof("%s: %s", pin, pin.Function())
 
 	if err = pin.In(gpio.PullUp, gpio.BothEdges); err != nil {
 		log.Fatal(err)
@@ -133,8 +136,9 @@ func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 	for {
 		(*p).WaitForEdge(-1)
 		if (*p).Read() == gpio.Low {
-			logger.Debug("Bucket tip")
+			logger.Info("Bucket tip")
 			s.count++
+			s.lastTip = time.Now()
 		}
 	}
 }
@@ -157,15 +161,11 @@ func (s *sensors) countBucketTips() {
 }
 
 func (s *sensors) getMMLastHour() float64{
-	total := 0
+	total := s.count
 	for _, x := range s.btips {
 		if x > 0 {
 			total += x
 		}
 	}
 	return math.Round(float64(total) * mmPerBucket * 100) / 100
-}
-
-func (s *sensors) getMMLastMin() float64{
-	return math.Round(float64(s.count) * mmPerBucket * 100) / 100
 }
