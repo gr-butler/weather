@@ -8,6 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"periph.io/x/periph/conn/gpio"
+	"periph.io/x/periph/conn/gpio/gpioreg"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
 	"periph.io/x/periph/conn/physic"
@@ -16,8 +21,6 @@ import (
 	"periph.io/x/periph/host"
 
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
 )
 
 const (
@@ -61,8 +64,44 @@ type webHistory struct {
 	TipHistory  []int     `json:"tip_last_hour"`
 }
 
-func main() {
+var atmPresure = prometheus.NewGauge(
+    prometheus.GaugeOpts{
+        Name: "atmospheric_pressure",
+        Help: "Atmospheric pressure hPa",
+    },
+)
 
+var mmRainPerHour = prometheus.NewGauge(
+    prometheus.GaugeOpts{
+        Name: "mm_rain_last_hour",
+        Help: "mm of Rain in the last hour",
+    },
+)
+
+var rh = prometheus.NewGauge(
+    prometheus.GaugeOpts{
+        Name: "relative_humidity",
+        Help: "Relative Humidity",
+    },
+)
+
+var temperature = prometheus.NewGauge(
+    prometheus.GaugeOpts{
+        Name: "temperature",
+        Help: "Temperature C",
+    },
+)
+
+// called by prometheus
+func init() {
+	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
+	prometheus.MustRegister(atmPresure)
+	prometheus.MustRegister(mmRainPerHour)
+	prometheus.MustRegister(rh)
+	prometheus.MustRegister(temperature)
+}
+
+func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	m, d, tipbucket, bus := initMCP9808()
 	defer (*bus).Close()
@@ -75,6 +114,7 @@ func main() {
 
 	http.HandleFunc("/", s.handler)
 	http.HandleFunc("/hist", s.history)
+	http.Handle("/metrics", promhttp.Handler())
 	logger.Info("Starting webservice...")
 	logger.Fatal(http.ListenAndServe(":80", nil))
 
@@ -200,6 +240,14 @@ func (s *sensors) recordHistory() {
 		s.btips[min] = s.count
 		// reset the counter
 		s.count = 0 
+		
+		// prometheus data
+		mmRainPerHour.Set(s.getMMLastHour())
+		atmPresure.Set(s.pressure)
+		rh.Set(s.humidity)
+		temperature.Set(s.temp)
+		
+		// local history
 		if min == 0 {
 			h := x.Hour()
 			s.rain24[h] = s.getMMLastHour()
