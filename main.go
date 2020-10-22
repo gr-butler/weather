@@ -26,22 +26,39 @@ const (
 )
 
 type sensors struct {
-	mcp   *mcp9808.Dev
-	bme   *bmxx80.Dev
-	btips []int
-	count int
-	lastTip time.Time
+	mcp         *mcp9808.Dev
+	bme         *bmxx80.Dev
+	btips      []int
+	count        int
+	lastTip      time.Time
+	rainHr       float64
+	pressure     float64
+	pressureHg   float64
+	humidity     float64
+	temp         float64
+	rain24     []float64
+	pressure24 []float64
+	humidity24 []float64
+	temp24     []float64
 }
 
 type webdata struct {
-	Temp       float64 `json:"temp_C"`
-	Temp1      float64 `json:"temp1_C"`
-	Humidity   float64 `json:"humidity_RH"`
-	Pressure   float64 `json:"pressure_hPa"`
-	PressureHg float64 `json:"pressure_mmHg"`
-	RainHr     float64 `json:"rain_mm_hr"`
-	LastTip    string  `json:"last_tip"`
-	TipHistory []int   `json:"tip_history"`
+	TimeNow    string    `json:"time"`
+	Temp       float64   `json:"temp_C"`
+	Humidity   float64   `json:"humidity_RH"`
+	Pressure   float64   `json:"pressure_hPa"`
+	PressureHg float64   `json:"pressure_mmHg"`
+	RainHr     float64   `json:"rain_mm_hr"`
+	LastTip    string    `json:"last_tip"`
+	
+}
+
+type webHistory struct {
+	Temp24H     []float64 `json:"temp_24hr"`
+	Rain24H     []float64 `json:"rain_mm_24hr"`
+	Pressure24H []float64 `json:"pressure_24hr"`
+	Humidity24H []float64 `json:"humidity_24hr"`
+	TipHistory  []int     `json:"tip_last_hour"`
 }
 
 func main() {
@@ -51,37 +68,48 @@ func main() {
 	defer (*bus).Close()
 
 	tips := make([]int, 60)
-	s := sensors{bme: d, mcp: m, btips: tips, count: 0}
+	s := sensors{bme: d, mcp: m, btips: tips, count: 0, rain24: make([]float64, 24), pressure24: make([]float64, 24), humidity24: make([]float64, 24), temp24: make([]float64, 24)}
 
-	go s.countBucketTips()
+	go s.recordHistory()
 	go s.monitorGPIO(tipbucket)
 
 	http.HandleFunc("/", s.handler)
+	http.HandleFunc("/hist", s.history)
 	logger.Info("Starting webservice...")
 	logger.Fatal(http.ListenAndServe(":80", nil))
 
 	logger.Info("Exiting...")
 }
 
+func (s *sensors) history (w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	h := webHistory {
+		Temp24H: s.temp24,
+		Rain24H: s.rain24,
+		TipHistory: s.btips,
+		Pressure24H: s.pressure24,
+		Humidity24H: s.humidity24,
+	}
+
+	js, err := json.Marshal(h)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(js)
+}
+
 func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	e := physic.Env{}
-	s.mcp.Sense(&e)
-	logger.Debugf("MCP: %8s %10s %9s\n", e.Temperature, e.Pressure, e.Humidity)
-
-	em := physic.Env{}
-	s.bme.Sense(&em)
-	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
-
+	s.measureSensors()
 	wd := webdata{
-		Temp:       em.Temperature.Celsius(),
-		Temp1:      e.Temperature.Celsius(),
-		Humidity:   math.Round(float64(em.Humidity) / float64(physic.PercentRH)),
-		Pressure:   math.Round(float64(em.Pressure) / float64(100 * physic.Pascal)),
-		PressureHg: math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa)),
+		Temp:       s.temp,
+		Humidity:   s.humidity,
+		Pressure:   s.pressure,
+		PressureHg: s.pressureHg,
 		RainHr:     s.getMMLastHour(),
 		LastTip:    s.lastTip.Format(time.RFC822),
-		TipHistory: s.btips,
+		TimeNow:    time.Now().Format(time.RFC822),
 	}
 
 	js, err := json.Marshal(wd)
@@ -148,8 +176,23 @@ func (s *sensors) monitorGPIO(p *gpio.PinIO) {
 	}
 }
 
-func (s *sensors) countBucketTips() {
+func (s *sensors) measureSensors() {
+	e := physic.Env{}
+	s.mcp.Sense(&e)
+	logger.Debugf("MCP: %8s %10s %9s\n", e.Temperature, e.Pressure, e.Humidity)
+
+	em := physic.Env{}
+	s.bme.Sense(&em)
+	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
+	s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
+	s.pressure = math.Round(float64(em.Pressure) / float64(100 * physic.Pascal))
+	s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
+	s.temp = e.Temperature.Celsius()
+}
+
+func (s *sensors) recordHistory() {
 	for x := range time.Tick(time.Minute) {
+		s.measureSensors()
 		logger.Debugf("Tick at %v", x)
 		min := x.Minute()
 		logger.Debugf("Tick at min [%v] with [%v] tips", min, s.count)
@@ -157,6 +200,13 @@ func (s *sensors) countBucketTips() {
 		s.btips[min] = s.count
 		// reset the counter
 		s.count = 0 
+		if min == 0 {
+			h := x.Hour()
+			s.rain24[h] = s.getMMLastHour()
+			s.humidity24[h] = s.humidity
+			s.pressure24[h] = s.pressure
+			s.temp24[h] = s.temp
+		}
 	}
 }
 
