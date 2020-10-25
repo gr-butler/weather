@@ -78,6 +78,13 @@ var mmRainPerHour = prometheus.NewGauge(
     },
 )
 
+var mmRainPerMin = prometheus.NewGauge(
+    prometheus.GaugeOpts{
+        Name: "mm_rain_last_min",
+        Help: "mm of Rain in the last min",
+    },
+)
+
 var rh = prometheus.NewGauge(
     prometheus.GaugeOpts{
         Name: "relative_humidity",
@@ -99,6 +106,7 @@ func init() {
 	prometheus.MustRegister(mmRainPerHour)
 	prometheus.MustRegister(rh)
 	prometheus.MustRegister(temperature)
+	prometheus.MustRegister(mmRainPerMin)
 }
 
 func main() {
@@ -246,6 +254,7 @@ func (s *sensors) recordHistory() {
 		atmPresure.Set(s.pressure)
 		rh.Set(s.humidity)
 		temperature.Set(s.temp)
+		mmRainPerMin.Set(s.getMMLastMin())
 		
 		// local history
 		if min == 0 {
@@ -258,10 +267,14 @@ func (s *sensors) recordHistory() {
 	}
 }
 
-func (s *sensors) getMMLastHour() float64{
+func (s *sensors) getMMLastHour() float64 {
 	total := s.count
 	for _, x := range s.btips {
 		total += x
 	}
 	return math.Round(float64(total) * mmPerBucket * 100) / 100
+}
+
+func (s *sensors) getMMLastMin() float64 {
+	return math.Round(float64(s.count) * mmPerBucket * 100) / 100
 }
