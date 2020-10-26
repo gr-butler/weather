@@ -34,6 +34,8 @@ type sensors struct {
 	btips      []int
 	count        int
 	lastTip      time.Time
+	bus          *i2c.BusCloser
+	rainpin      *gpio.PinIO
 	rainHr       float64
 	pressure     float64
 	pressureHg   float64
@@ -111,22 +113,24 @@ func init() {
 
 func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
-	m, d, tipbucket, bus := initMCP9808()
-	defer (*bus).Close()
+	s := sensors{}
+	s.initSensors()
+	defer (*s.bus).Close()
+	
+	// get initial values
+	s.recordHistory()
 
-	tips := make([]int, 60)
-	s := sensors{bme: d, mcp: m, btips: tips, count: 0, rain24: make([]float64, 24), pressure24: make([]float64, 24), humidity24: make([]float64, 24), temp24: make([]float64, 24)}
-
+	// start go routines
 	go s.recordHistory()
-	go s.monitorGPIO(tipbucket)
+	go s.monitorRainGPIO()
 
+	// start web service
 	http.HandleFunc("/", s.handler)
 	http.HandleFunc("/hist", s.history)
 	http.Handle("/metrics", promhttp.Handler())
 	logger.Info("Starting webservice...")
+	defer logger.Info("Exiting...")
 	logger.Fatal(http.ListenAndServe(":80", nil))
-
-	logger.Info("Exiting...")
 }
 
 func (s *sensors) history (w http.ResponseWriter, r *http.Request) {
@@ -168,7 +172,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Write(js)
 }
 
-func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, *gpio.PinIO, *i2c.BusCloser) {
+func (s *sensors) initSensors() () {
 	if _, err := host.Init(); err != nil {
 		logger.Fatal(err)
 	}
@@ -197,26 +201,35 @@ func initMCP9808() (*mcp9808.Dev, *bmxx80.Dev, *gpio.PinIO, *i2c.BusCloser) {
 		logger.Fatalf("failed to open new sensor: %v", err)
 	}
 
-	// Lookup a pin by its number:
-	pin := gpioreg.ByName("GPIO17")
-	if pin == nil {
+	// Lookup a rainpin by its number:
+	rainpin := gpioreg.ByName("GPIO17")
+	if rainpin == nil {
 		log.Fatal("Failed to find GPIO17")
 	}
 
-	logger.Infof("%s: %s", pin, pin.Function())
+	logger.Infof("%s: %s", rainpin, rainpin.Function())
 
-	if err = pin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+	if err = rainpin.In(gpio.PullUp, gpio.BothEdges); err != nil {
 		log.Fatal(err)
 	}
 
-	return sensor, bme, &pin, &bus
+	s.bme = bme 
+	s.mcp = sensor 
+	s.btips = make([]int, 60)
+	s.count = 0 
+	s.rain24 = make([]float64, 24) 
+	s.pressure24 = make([]float64, 24)
+	s.humidity24 = make([]float64, 24)
+	s.temp24 = make([]float64, 24)
+	s.bus = &bus
+	s.rainpin = &rainpin
 }
 
-func (s *sensors) monitorGPIO(p *gpio.PinIO) {
+func (s *sensors) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
 	for {
-		(*p).WaitForEdge(-1)
-		if (*p).Read() == gpio.Low {
+		(*s.rainpin).WaitForEdge(-1)
+		if (*s.rainpin).Read() == gpio.Low {
 			logger.Info("Bucket tip")
 			s.count++
 			s.lastTip = time.Now()
