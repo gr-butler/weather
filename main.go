@@ -352,5 +352,14 @@ func (s *sensors) getMMLastHour() float64 {
 }
 
 func (s *sensors) getMMLastMin() float64 {
-	return (float64(s.count) * mmPerBucket)
+		min := time.Now().Minute()
+	count := 0
+	if min >= 2 {
+		count = s.count + s.btips[min - 1] + s.btips[min - 2]
+	} else if min == 1 {
+		count = s.count + s.btips[0] + s.btips[59]
+	} else if min ==  0 {
+		count = s.count + s.btips[59] + s.btips[58]
+	}
+	return (float64(count)/3 * mmPerBucket)
 }
