@@ -127,7 +127,7 @@ func main() {
 	s := sensors{}
 	s.initSensors()
 	defer (*s.bus).Close()
-	
+
 	// get initial values
 	s.measureSensors()
 
@@ -188,6 +188,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 
 func (s *sensors) initSensors() () {
 	if _, err := host.Init(); err != nil {
+		logger.Error("Failed to init i2c bus")
 		logger.Fatal(err)
 	}
 	address := flag.Int("address", 0x18, "I²C address")
@@ -204,7 +205,7 @@ func (s *sensors) initSensors() () {
 	logger.Info("Starting BMP280 reader...")
 	bme, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
 	if err != nil {
-		logger.Fatalf("failed to initialize bme280: %v", err)
+		logger.Errorf("failed to initialize bme280: %v", err)
 	}
 
 	logger.Info("Starting MCP9808 Temperature Sensor")
@@ -212,13 +213,13 @@ func (s *sensors) initSensors() () {
 	// Create a new temperature sensor a sense with default options.
 	sensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *address})
 	if err != nil {
-		logger.Fatalf("failed to open new sensor: %v", err)
+		logger.Errorf("failed to open MCP9808 sensor: %v", err)
 	}
 
 	// Lookup a rainpin by its number:
 	rainpin := gpioreg.ByName("GPIO17")
 	if rainpin == nil {
-		log.Fatal("Failed to find GPIO17")
+		logger.Error("Failed to find GPIO17")
 	}
 
 	logger.Infof("%s: %s", rainpin, rainpin.Function())
@@ -229,20 +230,20 @@ func (s *sensors) initSensors() () {
 	// Lookup a rainpin by its number:
 	windpin := gpioreg.ByName("GPIO27")
 	if windpin == nil {
-		log.Fatal("Failed to find GPIO27")
+		logger.Error("Failed to find GPIO27")
 	}
 
 	logger.Infof("%s: %s", windpin, windpin.Function())
 
 	if err = windpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
-		log.Fatal(err)
+		logger.Error(err)
 	}
 
-	s.bme = bme 
-	s.mcp = sensor 
+	s.bme = bme
+	s.mcp = sensor
 	s.btips = make([]int, 60)
-	s.count = 0 
-	s.rain24 = make([]float64, 24) 
+	s.count = 0
+	s.rain24 = make([]float64, 24)
 	s.pressure24 = make([]float64, 24)
 	s.humidity24 = make([]float64, 24)
 	s.temp24 = make([]float64, 24)
@@ -262,7 +263,7 @@ func (s *sensors) monitorRainGPIO() {
 }
 
 func (s *sensors) monitorWindGPIO() {
-	logger.Info("Starting tip bucket")
+	logger.Info("Starting wind sensor")
 	for {
 		(*s.windpin).WaitForEdge(-1)
 		s.windticks++
@@ -272,17 +273,17 @@ func (s *sensors) monitorWindGPIO() {
 /*
 Measuring gusts and wind intensity
 
-Because wind is an element that varies rapidly over very short periods of 
-time it is sampled at high frequency (every 0.25 sec) to capture the intensity 
-of gusts, or short-lived peaks in speed, which inflict greatest damage in 
-storms. The gust speed and direction are defined by the maximum three second 
+Because wind is an element that varies rapidly over very short periods of
+time it is sampled at high frequency (every 0.25 sec) to capture the intensity
+of gusts, or short-lived peaks in speed, which inflict greatest damage in
+storms. The gust speed and direction are defined by the maximum three second
 average wind speed occurring in any period.
 
-A better measure of the overall wind intensity is defined by the average speed 
-and direction over the ten minute period leading up to the reporting time. 
-Mean wind over other averaging periods may also be calculated. A gale is 
-defined as a surface wind of mean speed of 34-40 knots, averaged over a period 
-of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to 
+A better measure of the overall wind intensity is defined by the average speed
+and direction over the ten minute period leading up to the reporting time.
+Mean wind over other averaging periods may also be calculated. A gale is
+defined as a surface wind of mean speed of 34-40 knots, averaged over a period
+of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to
 describe winds of 41 knots or greater.
 */
 
@@ -296,16 +297,23 @@ func (s *sensors) readWindsSpeedHF(){
 
 func (s *sensors) measureSensors() {
 	e := physic.Env{}
-	s.mcp.Sense(&e)
+	if s.mcp != nil {
+		s.mcp.Sense(&e)
+	}
 	logger.Debugf("MCP: %8s %10s %9s\n", e.Temperature, e.Pressure, e.Humidity)
 
 	em := physic.Env{}
-	s.bme.Sense(&em)
+	if s.bme != nil {
+		s.bme.Sense(&em)
+	}
 	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
 	s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
 	s.pressure = math.Round(float64(em.Pressure) / float64(100 * physic.Pascal))
 	s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
 	s.temp = e.Temperature.Celsius()
+	if s.temp < 50 { // use low res sensor, prevents -273.15 when sensor is offline!
+		s.temp = em.Temperature.Celsius()
+	}
     // prometheus data
 	mmRainPerHour.Set(s.getMMLastHour())
 	atmPresure.Set(s.pressure)
@@ -322,8 +330,8 @@ func (s *sensors) recordHistory() {
 		// store the bucket tip count for the last minute
 		s.btips[min] = s.count
 		// reset the bucket tip counter
-		s.count = 0 
-				
+		s.count = 0
+
 		// local history - this will ultimately dissappear when prometheus and grafana are fully working
 		if min == 0 {
 			h := x.Hour()
@@ -343,16 +351,6 @@ func (s *sensors) getMMLastHour() float64 {
 	return math.Round(float64(total) * mmPerBucket * 100) / 100
 }
 
-// get the avarage for the last 3 mins
 func (s *sensors) getMMLastMin() float64 {
-	min := time.Now().Minute()
-	count := 0
-	if min >= 2 {
-		count = s.count + s.btips[min - 1] + s.btips[min - 2]
-	} else if min == 1 {
-		count = s.count + s.btips[0] + s.btips[59]
-	} else if min ==  0 {
-		count = s.count + s.btips[59] + s.btips[58]
-	}
-	return (float64(count)/3 * mmPerBucket)
+	return (float64(s.count) * mmPerBucket)
 }
