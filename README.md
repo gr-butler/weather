@@ -10,6 +10,8 @@ Raspberry Pi weather station
 
 
 
+
+# service file
  [Unit]
 Description=Weather monitor service
 After=network.target
