@@ -117,7 +117,7 @@ var temperature = prometheus.NewGauge(
 var windspeed = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "windspeed",
-		Help: "Wind Speed m/s",
+		Help: "Wind Speed mph",
 	},
 )
 
@@ -377,6 +377,7 @@ func (s *sensors) measureSensors() {
 	temperature.Set(s.temp)
 	mmRainPerMin.Set(s.getMMLastMin())
 	windDirection.Set(s.windDirection)
+	windspeed.Set(s.getWindAverage())
 }
 
 func voltToDegrees(v float64) float64 {
