@@ -25,33 +25,36 @@ import (
 )
 
 const (
-	mmPerBucket float64 = 0.3
+	mmPerBucket float64 = 0.2794
 	hgToPa      float64 = 133.322387415
+	// 1 tick/second = 1.492MPH wind
+	mphPerTick float64 = 1.429
 )
 
 type sensors struct {
-	mcp           *mcp9808.Dev
-	bme           *bmxx80.Dev
-	btips         []int
-	count         int       // GPIO bucket tip counter
-	lastTip       time.Time // Last bucket tip
-	windticks     int       // GPIO wind speed tick counter
-	bus           *i2c.BusCloser
-	rainpin       *gpio.PinIO
-	windpin       *gpio.PinIO
-	windDir       *ads1x15.PinADC
-	rainHr        float64
-	pressure      float64
-	pressureHg    float64
-	humidity      float64
-	temp          float64
-	windSpeed     float64
-	windDirection float64
-	windVolts     float64
-	rain24        []float64
-	pressure24    []float64
-	humidity24    []float64
-	temp24        []float64
+	mcp              *mcp9808.Dev
+	bme              *bmxx80.Dev
+	btips            []int
+	count            int       // GPIO bucket tip counter
+	lastTip          time.Time // Last bucket tip
+	windticks        int       // GPIO wind speed tick counter
+	bus              *i2c.BusCloser
+	rainpin          *gpio.PinIO
+	windpin          *gpio.PinIO
+	windDir          *ads1x15.PinADC
+	rainHr           float64
+	pressure         float64
+	pressureHg       float64
+	humidity         float64
+	temp             float64
+	instantWindSpeed float64
+	windDirection    float64
+	windVolts        float64
+	rain24           []float64
+	pressure24       []float64
+	humidity24       []float64
+	temp24           []float64
+	windhist         []float64
 }
 
 type webdata struct {
@@ -65,6 +68,7 @@ type webdata struct {
 	Wind       int     `json:"wind"`
 	WindDir    float64 `json:"wind_dir"`
 	WindVolts  float64 `json:"wind_volt"`
+	WindSpeed  float64 `json:"wind_speed"`
 }
 
 type webHistory struct {
@@ -191,6 +195,7 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 		Wind:       s.windticks,
 		WindDir:    s.windDirection,
 		WindVolts:  s.windVolts,
+		WindSpeed:  s.getWindAverage(),
 	}
 
 	js, err := json.Marshal(wd)
@@ -280,6 +285,7 @@ func (s *sensors) initSensors() {
 	s.rainpin = &rainpin
 	s.windpin = &windpin
 	s.windDir = &dirPin
+	s.windhist = make([]float64, 10)
 }
 
 func (s *sensors) monitorRainGPIO() {
@@ -292,35 +298,46 @@ func (s *sensors) monitorRainGPIO() {
 	}
 }
 
+/*
+	// 1 tick/second = 1.492MPH wind
+	mphPerTick  float64 = 1.429
+*/
 func (s *sensors) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
+	p_hist := 0 //nolint
+	lasttick := time.Now()
+	var elapsed time.Duration
+	var edge time.Time
 	for {
 		(*s.windpin).WaitForEdge(-1)
 		s.windticks++
+
+		edge = time.Now()
+		elapsed = time.Since(lasttick)
+		lasttick = edge
+		// f = 1 / T
+		f := 1 / elapsed.Seconds()
+		s.instantWindSpeed = f * mphPerTick
+		s.windhist[p_hist] = s.instantWindSpeed
+		p_hist++
+		if p_hist == len(s.windhist) { 
+			p_hist = 0
+		}
 	}
 }
 
-/*
-Measuring gusts and wind intensity
-
-Because wind is an element that varies rapidly over very short periods of
-time it is sampled at high frequency (every 0.25 sec) to capture the intensity
-of gusts, or short-lived peaks in speed, which inflict greatest damage in
-storms. The gust speed and direction are defined by the maximum three second
-average wind speed occurring in any period.
-
-A better measure of the overall wind intensity is defined by the average speed
-and direction over the ten minute period leading up to the reporting time.
-Mean wind over other averaging periods may also be calculated. A gale is
-defined as a surface wind of mean speed of 34-40 knots, averaged over a period
-of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to
-describe winds of 41 knots or greater.
-*/
+func (s *sensors) getWindAverage() float64{
+	total := 0.0
+	for _, x := range s.windhist {
+		total += x
+	}
+	return (total / float64(len(s.windhist))) 
+}
 
 func (s *sensors) readWindsSpeedHF() {
 	for range time.Tick(time.Second) {
-		s.windticks = 0
 		windspeed.Set(float64(s.windticks))
+		s.windticks = 0
 	}
 }
 
@@ -352,17 +369,19 @@ func (s *sensors) measureSensors() {
 	s.windVolts = float64(sample.V) / float64(physic.Volt)
 	s.windDirection = voltToDegrees(s.windVolts)
 	logger.Debugf("Volt [%v], Dir [%v]", s.windVolts, s.windDirection)
+
 	// prometheus data
 	mmRainPerHour.Set(s.getMMLastHour())
 	atmPresure.Set(s.pressure)
 	rh.Set(s.humidity)
 	temperature.Set(s.temp)
 	mmRainPerMin.Set(s.getMMLastMin())
+	windDirection.Set(s.windDirection)
 }
 
 func voltToDegrees(v float64) float64 {
 	// this is based on the sensor datasheet that gives a list of voltages for each direction when set up according
-	// to the circuit given
+	// to the circuit given. Have noticed the output isn't that accurate relative to the sensor direction...
 	switch {
 	case v < 0.365:
 		return 112.5
@@ -439,3 +458,22 @@ func (s *sensors) getMMLastMin() float64 {
 	}
 	return (float64(count) / 3 * mmPerBucket)
 }
+
+
+
+/*
+Measuring gusts and wind intensity
+
+Because wind is an element that varies rapidly over very short periods of
+time it is sampled at high frequency (every 0.25 sec) to capture the intensity
+of gusts, or short-lived peaks in speed, which inflict greatest damage in
+storms. The gust speed and direction are defined by the maximum three second
+average wind speed occurring in any period.
+
+A better measure of the overall wind intensity is defined by the average speed
+and direction over the ten minute period leading up to the reporting time.
+Mean wind over other averaging periods may also be calculated. A gale is
+defined as a surface wind of mean speed of 34-40 knots, averaged over a period
+of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to
+describe winds of 41 knots or greater.
+*/
