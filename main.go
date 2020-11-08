@@ -37,7 +37,6 @@ type sensors struct {
 	btips            []int
 	count            int       // GPIO bucket tip counter
 	lastTip          time.Time // Last bucket tip
-	windticks        int       // GPIO wind speed tick counter
 	bus              *i2c.BusCloser
 	rainpin          *gpio.PinIO
 	windpin          *gpio.PinIO
@@ -65,7 +64,6 @@ type webdata struct {
 	PressureHg float64 `json:"pressure_mmHg"`
 	RainHr     float64 `json:"rain_mm_hr"`
 	LastTip    string  `json:"last_tip"`
-	Wind       int     `json:"wind"`
 	WindDir    float64 `json:"wind_dir"`
 	WindVolts  float64 `json:"wind_volt"`
 	WindSpeed  float64 `json:"wind_speed"`
@@ -152,7 +150,6 @@ func main() {
 	go s.recordHistory()
 	go s.monitorRainGPIO()
 	go s.monitorWindGPIO()
-	go s.readWindsSpeedHF()
 
 	// start web service
 	http.HandleFunc("/", s.handler)
@@ -192,7 +189,6 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 		RainHr:     s.getMMLastHour(),
 		LastTip:    s.lastTip.Format(time.RFC822),
 		TimeNow:    time.Now().Format(time.RFC822),
-		Wind:       s.windticks,
 		WindDir:    s.windDirection,
 		WindVolts:  s.windVolts,
 		WindSpeed:  s.getWindAverage(),
@@ -310,7 +306,6 @@ func (s *sensors) monitorWindGPIO() {
 	var edge time.Time
 	for {
 		(*s.windpin).WaitForEdge(-1)
-		s.windticks++
 
 		edge = time.Now()
 		elapsed = time.Since(lasttick)
@@ -326,20 +321,16 @@ func (s *sensors) monitorWindGPIO() {
 	}
 }
 
-func (s *sensors) getWindAverage() float64{
+func (s *sensors) getWindAverage() float64 {
 	total := 0.0
 	for _, x := range s.windhist {
 		total += x
 	}
-	return (total / float64(len(s.windhist))) 
+	avg := (total / float64(len(s.windhist)))
+	return math.Round(avg*100) / 100
 }
 
-func (s *sensors) readWindsSpeedHF() {
-	for range time.Tick(time.Second) {
-		windspeed.Set(float64(s.windticks))
-		s.windticks = 0
-	}
-}
+
 
 func (s *sensors) measureSensors() {
 	e := physic.Env{}
