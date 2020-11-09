@@ -122,6 +122,13 @@ var windspeed = prometheus.NewGauge(
 	},
 )
 
+var windgust = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "windgust",
+		Help: "Instant wind speed mph",
+	},
+)
+
 var windDirection = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "winddirection",
@@ -138,6 +145,8 @@ func init() {
 	prometheus.MustRegister(temperature)
 	prometheus.MustRegister(mmRainPerMin)
 	prometheus.MustRegister(windspeed)
+	prometheus.MustRegister(windgust)
+	prometheus.MustRegister(windDirection)
 }
 
 func main() {
@@ -147,13 +156,13 @@ func main() {
 	defer (*s.bus).Close()
 
 	// get initial values
-	s.measureSensors()
+	s.readI2C()
 
 	// start go routines
-	go s.recordHistory()
+	go s.recordRainData()
 	go s.monitorRainGPIO()
 	go s.monitorWindGPIO()
-	go s.processWindSpeed()
+	go s.processSensors()
 
 	// start web service
 	http.HandleFunc("/", s.handler)
@@ -184,7 +193,6 @@ func (s *sensors) history(w http.ResponseWriter, r *http.Request) {
 
 func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	s.measureSensors()
 	wd := webdata{
 		Temp:         s.temp,
 		Humidity:     s.humidity,
@@ -300,31 +308,30 @@ func (s *sensors) monitorRainGPIO() {
 	}
 }
 
-/*
-	// 1 tick/second = 1.492MPH wind
-	mphPerTick  float64 = 1.429
-*/
 func (s *sensors) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	lasttick := time.Now()
 	var edge time.Time
 	for {
-		(*s.windpin).WaitForEdge(-1)
-
-		edge = time.Now()
-		f := 1000 / float64( edge.Sub(lasttick).Milliseconds())
-		s.instantWindSpeed = math.Round(f*mphPerTick*100) / 100
-		//logger.Infof("Duration [%v], freq [%v], ws [%v]", edge.Sub(lasttick), f, s.instantWindSpeed)
-		lasttick = edge
-		s.windhist[s.pHist] = lasttick
-		s.pHist++
-		if s.pHist == len(s.windhist) {
-			s.pHist = 0
+		ok := (*s.windpin).WaitForEdge(time.Second)
+		if ok {
+			edge = time.Now()
+			f := 1000 / float64( edge.Sub(lasttick).Milliseconds())
+			s.instantWindSpeed = math.Round(f*mphPerTick*100) / 100
+			//logger.Infof("Duration [%v], freq [%v], ws [%v]", edge.Sub(lasttick), f, s.instantWindSpeed)
+			lasttick = edge
+			s.windhist[s.pHist] = lasttick
+			s.pHist++
+			if s.pHist == len(s.windhist) {
+				s.pHist = 0
+			}
+		} else {
+			s.instantWindSpeed = 0
 		}
 	}
 }
 
-func (s *sensors) processWindSpeed() {
+func (s *sensors) processSensors() {
 	for range time.Tick(time.Second * 10) {
 		// iterate over array, cal period on any value less that 5 seconds old
 		// determine average
@@ -349,7 +356,7 @@ func (s *sensors) processWindSpeed() {
 			total += duration
 			count++
 		}
-		logger.Info("")
+		
 		if count > 0 {
 			// average tick interval
 			avg := (total.Milliseconds() / count)
@@ -362,10 +369,12 @@ func (s *sensors) processWindSpeed() {
 		}
 
 		windspeed.Set(s.instantWindSpeed)
+		//process the remaining sensores
+		s.readI2C()
 	}
 }
 
-func (s *sensors) measureSensors() {
+func (s *sensors) readI2C() {
 	e := physic.Env{}
 	if s.mcp != nil {
 		s.mcp.Sense(&e)
@@ -401,7 +410,8 @@ func (s *sensors) measureSensors() {
 	temperature.Set(s.temp)
 	mmRainPerMin.Set(s.getMMLastMin())
 	windDirection.Set(s.windDirection)
-	windspeed.Set(s.instantWindSpeed)
+	windspeed.Set(s.windSpeedAvg)
+	windgust.Set(s.instantWindSpeed)
 }
 
 func voltToDegrees(v float64) float64 {
@@ -443,22 +453,17 @@ func voltToDegrees(v float64) float64 {
 	}
 }
 
-func (s *sensors) recordHistory() {
+func (s *sensors) recordRainData() {
 	for x := range time.Tick(time.Minute) {
-		s.measureSensors()
 		min := x.Minute()
 		// store the bucket tip count for the last minute
 		s.btips[min] = s.count
 		// reset the bucket tip counter
 		s.count = 0
 
-		// local history - this will ultimately dissappear when prometheus and grafana are fully working
 		if min == 0 {
 			h := x.Hour()
 			s.rain24[h] = s.getMMLastHour()
-			s.humidity24[h] = s.humidity
-			s.pressure24[h] = s.pressure
-			s.temp24[h] = s.temp
 		}
 	}
 }
