@@ -28,7 +28,7 @@ const (
 	mmPerBucket float64 = 0.2794
 	hgToPa      float64 = 133.322387415
 	// 1 tick/second = 1.492MPH wind
-	mphPerTick float64 = 1.429
+	mphPerTick float64 = 1.429 / 2 // i seem to get 2 ticks per rev on my sensor 
 )
 
 type sensors struct {
@@ -47,26 +47,29 @@ type sensors struct {
 	humidity         float64
 	temp             float64
 	instantWindSpeed float64
+	windSpeedAvg     float64
 	windDirection    float64
 	windVolts        float64
 	rain24           []float64
 	pressure24       []float64
 	humidity24       []float64
 	temp24           []float64
-	windhist         []float64
+	windhist         []time.Time
+	pHist            int
 }
 
 type webdata struct {
-	TimeNow    string  `json:"time"`
-	Temp       float64 `json:"temp_C"`
-	Humidity   float64 `json:"humidity_RH"`
-	Pressure   float64 `json:"pressure_hPa"`
-	PressureHg float64 `json:"pressure_mmHg"`
-	RainHr     float64 `json:"rain_mm_hr"`
-	LastTip    string  `json:"last_tip"`
-	WindDir    float64 `json:"wind_dir"`
-	WindVolts  float64 `json:"wind_volt"`
-	WindSpeed  float64 `json:"wind_speed"`
+	TimeNow      string  `json:"time"`
+	Temp         float64 `json:"temp_C"`
+	Humidity     float64 `json:"humidity_RH"`
+	Pressure     float64 `json:"pressure_hPa"`
+	PressureHg   float64 `json:"pressure_mmHg"`
+	RainHr       float64 `json:"rain_mm_hr"`
+	LastTip      string  `json:"last_tip"`
+	WindDir      float64 `json:"wind_dir"`
+	WindVolts    float64 `json:"wind_volt"`
+	WindSpeed    float64 `json:"wind_speed"`
+	WindSpeedAvg float64 `json:"wind_speed_avg"`
 }
 
 type webHistory struct {
@@ -115,7 +118,7 @@ var temperature = prometheus.NewGauge(
 var windspeed = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "windspeed",
-		Help: "Wind Speed mph",
+		Help: "Average Wind Speed mph",
 	},
 )
 
@@ -150,6 +153,7 @@ func main() {
 	go s.recordHistory()
 	go s.monitorRainGPIO()
 	go s.monitorWindGPIO()
+	go s.processWindSpeed()
 
 	// start web service
 	http.HandleFunc("/", s.handler)
@@ -182,16 +186,17 @@ func (s *sensors) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	s.measureSensors()
 	wd := webdata{
-		Temp:       s.temp,
-		Humidity:   s.humidity,
-		Pressure:   s.pressure,
-		PressureHg: s.pressureHg,
-		RainHr:     s.getMMLastHour(),
-		LastTip:    s.lastTip.Format(time.RFC822),
-		TimeNow:    time.Now().Format(time.RFC822),
-		WindDir:    s.windDirection,
-		WindVolts:  s.windVolts,
-		WindSpeed:  s.getWindAverage(),
+		Temp:         s.temp,
+		Humidity:     s.humidity,
+		Pressure:     s.pressure,
+		PressureHg:   s.pressureHg,
+		RainHr:       s.getMMLastHour(),
+		LastTip:      s.lastTip.Format(time.RFC822),
+		TimeNow:      time.Now().Format(time.RFC822),
+		WindDir:      s.windDirection,
+		WindVolts:    s.windVolts,
+		WindSpeed:    s.instantWindSpeed,
+		WindSpeedAvg: s.windSpeedAvg,
 	}
 
 	js, err := json.Marshal(wd)
@@ -281,7 +286,8 @@ func (s *sensors) initSensors() {
 	s.rainpin = &rainpin
 	s.windpin = &windpin
 	s.windDir = &dirPin
-	s.windhist = make([]float64, 10)
+	s.windhist = make([]time.Time, 10)
+	s.pHist = 0
 }
 
 func (s *sensors) monitorRainGPIO() {
@@ -300,37 +306,64 @@ func (s *sensors) monitorRainGPIO() {
 */
 func (s *sensors) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	p_hist := 0 //nolint
 	lasttick := time.Now()
-	var elapsed time.Duration
 	var edge time.Time
 	for {
 		(*s.windpin).WaitForEdge(-1)
 
 		edge = time.Now()
-		elapsed = time.Since(lasttick)
+		f := 1000 / float64( edge.Sub(lasttick).Milliseconds())
+		s.instantWindSpeed = math.Round(f*mphPerTick*100) / 100
+		//logger.Infof("Duration [%v], freq [%v], ws [%v]", edge.Sub(lasttick), f, s.instantWindSpeed)
 		lasttick = edge
-		// f = 1 / T
-		f := 1 / elapsed.Seconds()
-		s.instantWindSpeed = f * mphPerTick
-		s.windhist[p_hist] = s.instantWindSpeed
-		p_hist++
-		if p_hist == len(s.windhist) { 
-			p_hist = 0
+		s.windhist[s.pHist] = lasttick
+		s.pHist++
+		if s.pHist == len(s.windhist) {
+			s.pHist = 0
 		}
 	}
 }
 
-func (s *sensors) getWindAverage() float64 {
-	total := 0.0
-	for _, x := range s.windhist {
-		total += x
+func (s *sensors) processWindSpeed() {
+	for range time.Tick(time.Second * 10) {
+		// iterate over array, cal period on any value less that 5 seconds old
+		// determine average
+		now := time.Now()
+		max := len(s.windhist) - 1
+		var duration time.Duration
+		var last time.Time
+		var total time.Duration
+		var count int64 = 0
+		for i := 0; i <= max; i++ {
+			tick := s.windhist[i]
+			if i == 0 {
+				last = s.windhist[max]
+			} else {
+				last = s.windhist[i-1]
+			}
+			duration = tick.Sub(last)
+			if now.Sub(tick) > (5*time.Second) || duration > time.Second || duration < (10*time.Millisecond) {
+				continue
+			}
+			//logger.Infof("[%v]: Last [%v] this [%v] Duration [%v]",i, last, tick, duration)
+			total += duration
+			count++
+		}
+		logger.Info("")
+		if count > 0 {
+			// average tick interval
+			avg := (total.Milliseconds() / count)
+			// f := 1 / period
+			f := 1000 / float64(avg)
+			s.windSpeedAvg = math.Round(f*mphPerTick*100) / 100
+			//logger.Infof("Average duration [%v], freq [%v], ws [%v]", avg, f, s.windSpeedAvg)
+		} else {
+			s.windSpeedAvg = 0.0
+		}
+
+		windspeed.Set(s.instantWindSpeed)
 	}
-	avg := (total / float64(len(s.windhist)))
-	return math.Round(avg*100) / 100
 }
-
-
 
 func (s *sensors) measureSensors() {
 	e := physic.Env{}
@@ -368,7 +401,7 @@ func (s *sensors) measureSensors() {
 	temperature.Set(s.temp)
 	mmRainPerMin.Set(s.getMMLastMin())
 	windDirection.Set(s.windDirection)
-	windspeed.Set(s.getWindAverage())
+	windspeed.Set(s.instantWindSpeed)
 }
 
 func voltToDegrees(v float64) float64 {
@@ -450,8 +483,6 @@ func (s *sensors) getMMLastMin() float64 {
 	}
 	return (float64(count) / 3 * mmPerBucket)
 }
-
-
 
 /*
 Measuring gusts and wind intensity
