@@ -293,7 +293,7 @@ func (s *sensors) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
 	for {
 		(*s.rainpin).WaitForEdge(-1)
-		logger.Info("Bucket tip")
+		//logger.Info("Bucket tip")
 		s.count++
 		s.lastTip = time.Now()
 	}
@@ -359,7 +359,7 @@ func (s *sensors) processSensors() {
 			s.windSpeedAvg = 0.0
 		}
 
-		windspeed.Set(s.instantWindSpeed)
+		windspeed.Set(s.windSpeedAvg)
 		//process the remaining sensores
 		s.readI2C()
 	}
