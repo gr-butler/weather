@@ -18,7 +18,6 @@ import (
 	"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/devices/bmxx80"
 	"periph.io/x/periph/experimental/devices/ads1x15"
-	"periph.io/x/periph/experimental/devices/mcp9808"
 	"periph.io/x/periph/host"
 
 	logger "github.com/sirupsen/logrus"
@@ -32,7 +31,6 @@ const (
 )
 
 type sensors struct {
-	mcp              *mcp9808.Dev
 	bme              *bmxx80.Dev
 	btips            []int
 	count            int       // GPIO bucket tip counter
@@ -212,7 +210,6 @@ func (s *sensors) initSensors() {
 		logger.Error("Failed to init i2c bus")
 		logger.Fatal(err)
 	}
-	address := flag.Int("address", 0x18, "I²C address")
 	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
 
 	flag.Parse()
@@ -230,12 +227,6 @@ func (s *sensors) initSensors() {
 	}
 
 	logger.Info("Starting MCP9808 Temperature Sensor")
-
-	// Create a new temperature sensor a sense with default options.
-	sensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *address})
-	if err != nil {
-		logger.Errorf("failed to open MCP9808 sensor: %v", err)
-	}
 
 	// Lookup a rainpin by its number:
 	rainpin := gpioreg.ByName("GPIO17")
@@ -275,7 +266,7 @@ func (s *sensors) initSensors() {
 	defer dirPin.Halt()
 
 	s.bme = bme
-	s.mcp = sensor
+	//s.mcp = sensor
 	s.btips = make([]int, 60)
 	s.count = 0
 	s.rain24 = make([]float64, 24)
@@ -366,12 +357,6 @@ func (s *sensors) processWindSpeed() {
 }
 
 func (s *sensors) measureSensors() {
-	e := physic.Env{}
-	if s.mcp != nil {
-		s.mcp.Sense(&e)
-	}
-	logger.Debugf("MCP: %8s %10s %9s\n", e.Temperature, e.Pressure, e.Humidity)
-
 	em := physic.Env{}
 	if s.bme != nil {
 		s.bme.Sense(&em)
@@ -380,11 +365,7 @@ func (s *sensors) measureSensors() {
 	s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
 	s.pressure = math.Round(float64(em.Pressure) / float64(100*physic.Pascal))
 	s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
-	s.temp = e.Temperature.Celsius()
-	if s.temp < 50 { // use low res sensor, prevents -273.15 when sensor is offline!
-		s.temp = em.Temperature.Celsius()
-	}
-
+	s.temp = em.Temperature.Celsius()
 	sample, err := (*s.windDir).Read()
 	if err != nil {
 		logger.Errorf("Error reading wind direction value [%v]", err)
