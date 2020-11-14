@@ -27,7 +27,7 @@ const (
 	mmPerBucket float64 = 0.2794
 	hgToPa      float64 = 133.322387415
 	// 1 tick/second = 1.492MPH wind
-	mphPerTick float64 = 1.429 / 2 // i seem to get 2 ticks per rev on my sensor 
+	mphPerTick float64 = 1.429  
 )
 
 type sensors struct {
@@ -285,7 +285,7 @@ func (s *sensors) initSensors() {
 	s.rainpin = &rainpin
 	s.windpin = &windpin
 	s.windDir = &dirPin
-	s.windhist = make([]time.Time, 10)
+	s.windhist = make([]time.Time, 300)
 	s.pHist = 0
 }
 
@@ -319,6 +319,7 @@ func (s *sensors) monitorWindGPIO() {
 		} else {
 			s.instantWindSpeed = 0
 		}
+		
 	}
 }
 
@@ -332,6 +333,7 @@ func (s *sensors) processSensors() {
 		var last time.Time
 		var total time.Duration
 		var count int64 = 0
+		var gust float64 = 0.0
 		for i := 0; i <= max; i++ {
 			tick := s.windhist[i]
 			if i == 0 {
@@ -340,12 +342,20 @@ func (s *sensors) processSensors() {
 				last = s.windhist[i-1]
 			}
 			duration = tick.Sub(last)
-			if now.Sub(tick) > (5*time.Second) || duration > time.Second || duration < (10*time.Millisecond) {
+			if now.Sub(tick) > (time.Minute) || duration > time.Second {
 				continue
 			}
 			//logger.Infof("[%v]: Last [%v] this [%v] Duration [%v]",i, last, tick, duration)
 			total += duration
 			count++
+			if now.Sub(tick) > (10 * time.Second) {
+				continue
+			}
+			f := 1000 / float64(duration.Milliseconds())
+			instant := math.Round(f*mphPerTick*100) / 100
+			if instant > gust {
+				gust = instant
+			}
 		}
 		
 		if count > 0 {
@@ -360,6 +370,7 @@ func (s *sensors) processSensors() {
 		}
 
 		windspeed.Set(s.windSpeedAvg)
+		windgust.Set(s.instantWindSpeed)
 		//process the remaining sensores
 		s.readI2C()
 	}
@@ -392,7 +403,7 @@ func (s *sensors) readI2C() {
 	mmRainPerMin.Set(s.getMMLastMin())
 	windDirection.Set(s.windDirection)
 	windspeed.Set(s.windSpeedAvg)
-	windgust.Set(s.instantWindSpeed)
+	
 }
 
 func voltToDegrees(v float64) float64 {
