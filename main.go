@@ -134,17 +134,19 @@ func init() {
 
 func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
-	s := weatherstation{}
-	s.initSensors()
-	defer (*s.sensor.bus).Close()
+	w := weatherstation{}
+	s := sensors{}
+	w.sensor = &s
+	w.initSensors()
+	defer (*w.sensor.bus).Close()
 
 	// start go routines
-	go s.readAtmosphericSensors()
-	go s.readRainData()
-	go s.readWindData()
+	go w.readAtmosphericSensors()
+	go w.readRainData()
+	go w.readWindData()
 
 	// start web service
-	http.HandleFunc("/", s.handler)
+	http.HandleFunc("/", w.handler)
 	http.Handle("/metrics", promhttp.Handler())
 	logger.Info("Starting webservice...")
 	defer logger.Info("Exiting...")
@@ -170,6 +172,7 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 
 	js, err := json.Marshal(wd)
 	if err != nil {
+		logger.Errorf("JSON error [%v]" , err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

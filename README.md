@@ -1,4 +1,5 @@
 # weather
+
 Raspberry Pi weather station
 
  env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
@@ -7,8 +8,8 @@ Raspberry Pi weather station
 
  journalctl -e -u weather.service
 
+## service file
 
-# service file
 bash```
  [Unit]
 Description=Weather monitor service
@@ -28,7 +29,7 @@ ExecStartPre=/bin/sh -c "cp -f /home/pi/weatherServer.exe /usr/local/bin"
 WantedBy=multi-user.target
 '''
 
-# prometeus
+## prometeus
 
 chgrp -R nogroup  /prometheus
 
@@ -74,4 +75,3 @@ scrape_configs:
     - targets:
       - localhost:50000
 '''
-
