@@ -23,14 +23,14 @@ import (
 )
 
 type sensors struct {
+	
+}
+type weatherstation struct {
 	bme              *bmxx80.Dev
 	bus              *i2c.BusCloser
 	rainpin          *gpio.PinIO
 	windpin          *gpio.PinIO
 	windDir          *ads1x15.PinADC
-}
-type weatherstation struct {
-	sensor           *sensors
 
 	btips            []int
 	count            int       // GPIO bucket tip counter
@@ -135,10 +135,8 @@ func init() {
 func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
-	s := sensors{}
-	w.sensor = &s
 	w.initSensors()
-	defer (*w.sensor.bus).Close()
+	defer (*w.bus).Close()
 
 	// start go routines
 	go w.readAtmosphericSensors()
@@ -239,14 +237,14 @@ func (s *weatherstation) initSensors() {
 	}
 	defer dirPin.Halt()
 
-	s.sensor.bme = bme
+	s.bme = bme
 	//s.mcp = sensor
 	s.btips = make([]int, 60)
 	s.count = 0
-	s.sensor.bus = &bus
-	s.sensor.rainpin = &rainpin
-	s.sensor.windpin = &windpin
-	s.sensor.windDir = &dirPin
+	s.bus = &bus
+	s.rainpin = &rainpin
+	s.windpin = &windpin
+	s.windDir = &dirPin
 	s.windhist = make([]time.Time, 300)
 	s.pHist = 0
 }

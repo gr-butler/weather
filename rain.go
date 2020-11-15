@@ -14,7 +14,7 @@ const (
 func (s *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
 	for {
-		(*s.sensor.rainpin).WaitForEdge(-1)
+		(*s.rainpin).WaitForEdge(-1)
 		s.count++
 		s.lastTip = time.Now()
 	}

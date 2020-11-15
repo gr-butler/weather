@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	logger "github.com/sirupsen/logrus"
@@ -47,7 +48,6 @@ Values for windspeed, gust and direction are stored in local variable for the lo
 and in the prometeus guages for further processing.
 */
 
-
 const (
 	// 1 tick/second = 1.492MPH wind
 	mphPerTick float64 = 1.429
@@ -68,19 +68,18 @@ func (s *weatherstation) readWindData() {
 // watch the gpio port on tick calculate the instantanious wind speed.
 func (s *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	lasttick := time.Now()
+	defer logger.Info("Wind speed STOP")
+	lasttick := time.Now().Add(time.Duration(-1) * time.Second)
 	var edge time.Time
 	for {
-		ok := (*s.sensor.windpin).WaitForEdge(-1)
-		if ok {
-			freq := 1 / edge.Sub(lasttick).Seconds()
+		(*s.windpin).WaitForEdge(-1)
+		edge = time.Now()
+		period := edge.Sub(lasttick).Milliseconds()
+		if period != 0 {
+			freq := float64(1000 / period)
 			speed := freq * mphPerTick
 			livespeed = speed
 			lasttick = edge
-		} else {
-			// we shouldn't ever get here as the WaitForEdge should 
-			// block until we get a tick.
-			livespeed = 0
 		}
 	}
 }
@@ -92,10 +91,16 @@ func (s *weatherstation) processWindSpeed() {
 	pLastfour := 0
 	avg := 0.0
 	max := 0.0
+	// initial values
+	windspeed.Set(livespeed)
+	windgust.Set(livespeed)
+	// start ticker
 	for range time.Tick(time.Millisecond * 250) {
 		lastfour[pLastfour] = livespeed
 		// set livespeed to zero as if the wind stops we won't know!
-		livespeed = 0
+		if livespeed > 0 {
+			livespeed = 0
+		}
 		pLastfour++
 		if pLastfour == 4 {
 			// happens once per second
@@ -113,24 +118,27 @@ func (s *weatherstation) processWindSpeed() {
 			s.instantWindSpeed = max
 			windgust.Set(max)
 			lastMin[pLastMin] = avg
+			pLastMin++
+			// logger.Infof(">>> A[%v] M[%v]", avg, max)
+		}
+		if pLastMin == 60 {
+			// 60 seconds worth
 			avg = 0
-			if pLastMin == 60 {
-				// 60 seconds worth
-				pLastMin = 0
-				for _, v := range lastMin {
-					avg += v
-				}
-				avg = avg / 60
-				s.windSpeedAvg = avg
-				windspeed.Set(avg)
+			pLastMin = 0
+			for _, v := range lastMin {
+				avg += v
 			}
+			avg = avg / 60
+			s.windSpeedAvg = avg
+			logger.Infof("Setting wind speed [%v]", s.windSpeedAvg)
+			windspeed.Set(math.Round(avg*100) / 100)
 		}
 
 	}
 }
 
 func (s *weatherstation) readWindDirection() {
-	sample, err := (*s.sensor.windDir).Read()
+	sample, err := (*s.windDir).Read()
 	if err != nil {
 		logger.Errorf("Error reading wind direction value [%v]", err)
 		sample.Raw = 0
@@ -140,6 +148,7 @@ func (s *weatherstation) readWindDirection() {
 	logger.Debugf("Volt [%v], Dir [%v]", s.windVolts, s.windDirection)
 
 	// prometheus data
+	logger.Infof("Setting winddir [%v]", s.windDir)
 	windDirection.Set(s.windDirection)
 }
 

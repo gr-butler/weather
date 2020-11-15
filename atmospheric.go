@@ -13,10 +13,16 @@ const (
 )
 
 func (s *weatherstation) readAtmosphericSensors() {
+	s.doAtmosphere()
 	for range time.Tick(time.Minute) {
-		em := physic.Env{}
-		if s.sensor.bme != nil {
-			s.sensor.bme.Sense(&em)
+		s.doAtmosphere()
+	}
+}
+
+func (s *weatherstation) doAtmosphere() {
+	em := physic.Env{}
+		if s.bme != nil {
+			s.bme.Sense(&em)
 		}
 		logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
 		s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
@@ -28,5 +34,4 @@ func (s *weatherstation) readAtmosphericSensors() {
 		atmPresure.Set(s.pressure)
 		rh.Set(s.humidity)
 		temperature.Set(s.temp)
-	}
-}
+} 
