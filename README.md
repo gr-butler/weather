@@ -1,6 +1,6 @@
 # weather
-Raspberry Pi weather station
 
+Raspberry Pi weather station
 
  env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
 
@@ -8,11 +8,9 @@ Raspberry Pi weather station
 
  journalctl -e -u weather.service
 
+## service file
 
-
-
-# service file
-bash```
+```
  [Unit]
 Description=Weather monitor service
 After=network.target
@@ -29,15 +27,15 @@ ExecStartPre=/bin/sh -c "cp -f /home/pi/weatherServer.exe /usr/local/bin"
 
 [Install]
 WantedBy=multi-user.target
-'''
+```
 
-# prometeus
+## prometeus
 
 chgrp -R nogroup  /prometheus
 
 docker run -d --name prometheus_weather -p 9090:9090 -v /prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml -v /prometheus/data:/prometheus prom/prometheus --config.file=/etc/prometheus/prometheus.yml
 
-bash```
+```
 
 global:
   scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
@@ -76,5 +74,4 @@ scrape_configs:
     static_configs:
     - targets:
       - localhost:50000
-'''
-
+```
