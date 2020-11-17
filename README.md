@@ -2,7 +2,19 @@
 
 Raspberry Pi weather station
 
+A simple weather station based on a raspberry pi. It used a BME280 sensor for pressure, temp and humidity and some generic weather station parts for the rain guage, wind speed and wind direction sensors. 
+
+It's written in go which is each to cross compile for the pi.
+
+I use a prometheus time series database to scrape and record the values. These are displayed on a grafana dashboard. It's served from my home server using nginx reverse proxy.
+
+Below are just notes and common commands (easier to cut and paste than to type out each time!)
+
+## compilation
+
  env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
+
+## transfer and logs
 
  scp weatherServer.exe pi@192.168.1.69:/home/pi
 
