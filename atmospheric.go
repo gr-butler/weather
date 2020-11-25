@@ -26,8 +26,8 @@ func (s *weatherstation) doAtmosphere() {
 		}
 		logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
 		s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
-		s.pressure = math.Round(float64(em.Pressure) / float64(100*physic.Pascal))
-		s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
+		s.pressure = math.Round(float64(em.Pressure) / float64(100*physic.Pascal) * 100 ) / 100
+		s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa )) 
 		s.temp = em.Temperature.Celsius()
 
 		// prometheus data
