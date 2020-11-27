@@ -17,6 +17,7 @@ import (
 	"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/devices/bmxx80"
 	"periph.io/x/periph/experimental/devices/ads1x15"
+	"periph.io/x/periph/experimental/devices/mcp9808"
 	"periph.io/x/periph/host"
 
 	logger "github.com/sirupsen/logrus"
@@ -27,6 +28,7 @@ type sensors struct {
 }
 type weatherstation struct {
 	bme              *bmxx80.Dev
+	hiResT           *mcp9808.Dev
 	bus              *i2c.BusCloser
 	rainpin          *gpio.PinIO
 	windpin          *gpio.PinIO
@@ -40,6 +42,7 @@ type weatherstation struct {
 	pressureHg       float64
 	humidity         float64
 	temp             float64
+	hiResTemp        float64
 	instantWindSpeed float64
 	windSpeedAvg     float64
 	windDirection    float64
@@ -51,6 +54,7 @@ type weatherstation struct {
 type webdata struct {
 	TimeNow      string  `json:"time"`
 	Temp         float64 `json:"temp_C"`
+	TempHiRes    float64 `json:"temp2_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
 	PressureHg   float64 `json:"pressure_mmHg"`
@@ -98,6 +102,13 @@ var temperature = prometheus.NewGauge(
 	},
 )
 
+var highResTemp = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "hiResTemperature",
+		Help: "Temperature C",
+	},
+)
+
 var windspeed = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "windspeed",
@@ -125,7 +136,7 @@ func init() {
 	prometheus.MustRegister(atmPresure)
 	prometheus.MustRegister(mmRainPerHour)
 	prometheus.MustRegister(rh)
-	prometheus.MustRegister(temperature)
+	prometheus.MustRegister(temperature, highResTemp)
 	prometheus.MustRegister(mmRainPerMin)
 	prometheus.MustRegister(windspeed)
 	prometheus.MustRegister(windgust)
@@ -156,6 +167,7 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	wd := webdata{
 		Temp:         s.temp,
+		TempHiRes:    s.hiResTemp,
 		Humidity:     s.humidity,
 		Pressure:     s.pressure,
 		PressureHg:   s.pressureHg,
@@ -183,14 +195,22 @@ func (s *weatherstation) initSensors() {
 		logger.Fatal(err)
 	}
 	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
+	temperatureAddr := flag.Int("address", 0x18, "I²C address")
 
-	flag.Parse()
+	
 
 	// Open default I²C bus.
 	bus, err := i2creg.Open(*i2cbus)
 	if err != nil {
 		logger.Fatalf("failed to open I²C: %v", err)
 	}
+
+	// Create a new temperature sensor a sense with default options.
+	tempSensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *temperatureAddr})
+	if err != nil {
+		logger.Errorf("failed to open MCP9808 sensor: %v", err)
+	}
+
 
 	logger.Info("Starting BMP280 reader...")
 	bme, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
@@ -238,7 +258,7 @@ func (s *weatherstation) initSensors() {
 	defer dirPin.Halt()
 
 	s.bme = bme
-	//s.mcp = sensor
+	s.hiResT = tempSensor
 	s.btips = make([]int, 60)
 	s.count = 0
 	s.bus = &bus
