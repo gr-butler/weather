@@ -35,11 +35,11 @@ func (s *weatherstation) doAtmosphere() {
 	s.pressure = math.Round(float64(em.Pressure)/float64(100*physic.Pascal)*100) / 100
 	s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
 	s.temp = em.Temperature.Celsius()
-	s.hiResTemp = math.Round(hiT.Temperature.Celsius() * 100) / 100
+	s.hiResTemp = hiT.Temperature.Celsius()
 
 	// prometheus data
 	atmPresure.Set(s.pressure)
 	rh.Set(s.humidity)
-	temperature.Set(s.temp)
-	highResTemp.Set(s.hiResTemp)
+	temperature.Set(s.hiResTemp)
+	altTemp.Set(s.temp)
 }

@@ -54,7 +54,7 @@ type weatherstation struct {
 type webdata struct {
 	TimeNow      string  `json:"time"`
 	Temp         float64 `json:"temp_C"`
-	TempHiRes    float64 `json:"temp2_C"`
+	TempHiRes    float64 `json:"hiResTemp_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
 	PressureHg   float64 `json:"pressure_mmHg"`
@@ -102,9 +102,9 @@ var temperature = prometheus.NewGauge(
 	},
 )
 
-var highResTemp = prometheus.NewGauge(
+var altTemp = prometheus.NewGauge(
 	prometheus.GaugeOpts{
-		Name: "hiResTemperature",
+		Name: "altTemperature",
 		Help: "Temperature C",
 	},
 )
@@ -136,7 +136,7 @@ func init() {
 	prometheus.MustRegister(atmPresure)
 	prometheus.MustRegister(mmRainPerHour)
 	prometheus.MustRegister(rh)
-	prometheus.MustRegister(temperature, highResTemp)
+	prometheus.MustRegister(temperature, altTemp)
 	prometheus.MustRegister(mmRainPerMin)
 	prometheus.MustRegister(windspeed)
 	prometheus.MustRegister(windgust)
