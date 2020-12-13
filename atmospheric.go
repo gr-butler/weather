@@ -12,34 +12,43 @@ const (
 	hgToPa float64 = 133.322387415
 )
 
-func (s *weatherstation) readAtmosphericSensors() {
-	s.doAtmosphere()
+func (w *weatherstation) readAtmosphericSensors() {
+	w.doAtmosphere()
 	for range time.Tick(time.Second * 10) {
-		s.doAtmosphere()
+		w.doAtmosphere()
 	}
 }
 
-func (s *weatherstation) doAtmosphere() {
+func (w *weatherstation) doAtmosphere() {
 	hiT := physic.Env{}
-	if s.hiResT != nil {
-		s.hiResT.Sense(&hiT)
+	if w.s.hiResT != nil {
+		// if the sensor failed to read we'd get 
+		if err := w.s.hiResT.Sense(&hiT); err != nil {
+			logger.Errorf("MCP9808 read failed [%v]", err)
+			_ = hiT.Temperature.Set("0")
+		}
 	}
 	logger.Debugf("MCP: %8s \n", hiT.Temperature)
 	
 	em := physic.Env{}
-	if s.bme != nil {
-		s.bme.Sense(&em)
+	if w.s.bme != nil {
+		if err := w.s.bme.Sense(&em); err != nil {
+			// default values
+			logger.Errorf("BME280 read failed [%v]", err)
+			_ = em.Humidity.Set("0")
+			_ = em.Pressure.Set("740")
+		}
 	}
-	logger.Debugf("BME: %8s %10s %9s\n", em.Temperature, em.Pressure, em.Humidity)
-	s.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
-	s.pressure = math.Round(float64(em.Pressure)/float64(100*physic.Pascal)*100) / 100
-	s.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
-	s.temp = em.Temperature.Celsius()
-	s.hiResTemp = hiT.Temperature.Celsius()
+	logger.Infof("BME280: Temp [%8s], Pressure [%10s] Hum [%9s]", em.Temperature, em.Pressure, em.Humidity)
+	w.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
+	w.pressure = math.Round(float64(em.Pressure)/float64(100*physic.Pascal)*100) / 100
+	w.pressureHg = math.Round(float64(em.Pressure) / (float64(physic.Pascal) * hgToPa))
+	w.temp = em.Temperature.Celsius()
+	w.hiResTemp = hiT.Temperature.Celsius()
 
 	// prometheus data
-	atmPresure.Set(s.pressure)
-	rh.Set(s.humidity)
-	temperature.Set(s.hiResTemp)
-	altTemp.Set(s.temp)
+	atmPresure.Set(w.pressure)
+	rh.Set(w.humidity)
+	temperature.Set(w.hiResTemp)
+	altTemp.Set(w.temp)
 }

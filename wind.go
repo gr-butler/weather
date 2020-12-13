@@ -23,9 +23,7 @@ Mean wind over other averaging periods may also be calculated. A gale is
 defined as a surface wind of mean speed of 34-40 knots, averaged over a period
 of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to
 describe winds of 41 knots or greater.
-*/
 
-/*
 How do we measure the wind.
 
 The anemometer I use generates 1 pulse per revolution and the specifications states
@@ -66,13 +64,13 @@ func (s *weatherstation) readWindData() {
 }
 
 // watch the gpio port on tick calculate the instantanious wind speed.
-func (s *weatherstation) monitorWindGPIO() {
+func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer logger.Info("Wind speed STOP")
 	lasttick := time.Now().Add(time.Duration(-1) * time.Second)
 	var edge time.Time
 	for {
-		(*s.windpin).WaitForEdge(-1)
+		(*w.s.windpin).WaitForEdge(-1)
 		edge = time.Now()
 		period := edge.Sub(lasttick).Milliseconds()
 		if period != 0 {
@@ -84,7 +82,16 @@ func (s *weatherstation) monitorWindGPIO() {
 	}
 }
 
-func (s *weatherstation) processWindSpeed() {
+/*
+TODO:
+"A better measure of the overall wind intensity is defined by the average speed
+and direction over the ten minute period leading up to the reporting time."
+
+OR should we just report instant to prometeus and let it do the calcualtion?
+
+*/
+
+func (w *weatherstation) processWindSpeed() {
 	lastMin := make([]float64, 60)
 	pLastMin := 0
 	lastfour := make([]float64, 4)
@@ -115,11 +122,12 @@ func (s *weatherstation) processWindSpeed() {
 				}
 			}
 			avg = avg / 4
-			s.instantWindSpeed = max
+			w.instantWindSpeed = math.Round(max*100) / 100
 			windgust.Set(max)
-			lastMin[pLastMin] = avg
+			rAvg :=  math.Round(avg*100) / 100
+			lastMin[pLastMin] = rAvg
 			pLastMin++
-			// logger.Infof(">>> A[%v] M[%v]", avg, max)
+			logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
 		}
 		if pLastMin == 60 {
 			// 60 seconds worth
@@ -129,27 +137,27 @@ func (s *weatherstation) processWindSpeed() {
 				avg += v
 			}
 			avg = avg / 60
-			s.windSpeedAvg = avg
-			logger.Infof("Setting wind speed [%v]", s.windSpeedAvg)
-			windspeed.Set(math.Round(avg*100) / 100)
+			w.windSpeedAvg = math.Round(avg*100) / 100
+			logger.Infof("Setting wind speed [%.2f]", w.windSpeedAvg)
+			windspeed.Set(w.windSpeedAvg)
 		}
 
 	}
 }
 
-func (s *weatherstation) readWindDirection() {
-	sample, err := (*s.windDir).Read()
+func (w *weatherstation) readWindDirection() {
+	sample, err := (*w.s.windDir).Read()
 	if err != nil {
 		logger.Errorf("Error reading wind direction value [%v]", err)
 		sample.Raw = 0
 	}
-	s.windVolts = float64(sample.V) / float64(physic.Volt)
-	s.windDirection = voltToDegrees(s.windVolts)
-	logger.Debugf("Volt [%v], Dir [%v]", s.windVolts, s.windDirection)
+	w.windVolts = float64(sample.V) / float64(physic.Volt)
+	w.windDirection = voltToDegrees(w.windVolts)
+	logger.Debugf("Volt [%v], Dir [%v]", w.windVolts, w.windDirection)
 
 	// prometheus data
-	logger.Infof("Setting winddir [%v]", s.windDir)
-	windDirection.Set(s.windDirection)
+	logger.Debugf("Setting winddir [%v]", w.s.windDir)
+	windDirection.Set(w.windDirection)
 }
 
 func voltToDegrees(v float64) float64 {

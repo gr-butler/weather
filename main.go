@@ -24,20 +24,18 @@ import (
 )
 
 type sensors struct {
-	
-}
-type weatherstation struct {
 	bme              *bmxx80.Dev
 	hiResT           *mcp9808.Dev
 	bus              *i2c.BusCloser
 	rainpin          *gpio.PinIO
 	windpin          *gpio.PinIO
 	windDir          *ads1x15.PinADC
-
+}
+type weatherstation struct {
+	s                *sensors
 	btips            []int
 	count            int       // GPIO bucket tip counter
-	lastTip          time.Time // Last bucket tip
-	rainHr           float64
+	lastTip          time.Time // Last bucket tip	
 	pressure         float64
 	pressureHg       float64
 	humidity         float64
@@ -59,6 +57,7 @@ type webdata struct {
 	Pressure     float64 `json:"pressure_hPa"`
 	PressureHg   float64 `json:"pressure_mmHg"`
 	RainHr       float64 `json:"rain_mm_hr"`
+	RainRate     float64 `json:"rain_rate"`
 	LastTip      string  `json:"last_tip"`
 	WindDir      float64 `json:"wind_dir"`
 	WindVolts    float64 `json:"wind_volt"`
@@ -81,10 +80,10 @@ var mmRainPerHour = prometheus.NewGauge(
 	},
 )
 
-var mmRainPerMin = prometheus.NewGauge(
+var rainRatePerHour = prometheus.NewGauge(
 	prometheus.GaugeOpts{
-		Name: "mm_rain_last_min",
-		Help: "mm of Rain in the last min",
+		Name: "rain_hour_rate",
+		Help: "The rain rate based on the last 5 minuntes",
 	},
 )
 
@@ -137,7 +136,7 @@ func init() {
 	prometheus.MustRegister(mmRainPerHour)
 	prometheus.MustRegister(rh)
 	prometheus.MustRegister(temperature, altTemp)
-	prometheus.MustRegister(mmRainPerMin)
+	prometheus.MustRegister(rainRatePerHour)
 	prometheus.MustRegister(windspeed)
 	prometheus.MustRegister(windgust)
 	prometheus.MustRegister(windDirection)
@@ -146,13 +145,15 @@ func init() {
 func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
+	w.s = &sensors{}
 	w.initSensors()
-	defer (*w.bus).Close()
+	defer (*w.s.bus).Close()
 
 	// start go routines
 	go w.readAtmosphericSensors()
 	go w.readRainData()
 	go w.readWindData()
+	go w.sendWOWData()
 
 	// start web service
 	http.HandleFunc("/", w.handler)
@@ -162,6 +163,15 @@ func main() {
 	logger.Fatal(http.ListenAndServe(":80", nil))
 }
 
+// Send to met office wow site
+func (w *weatherstation) sendWOWData(){
+	for min := range time.Tick(time.Minute) {
+		if min.Minute() % 15 == 0 {
+			logger.Info("Sending data to met office")
+			//TODO
+		}
+	}
+}
 
 func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -172,6 +182,7 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 		Pressure:     s.pressure,
 		PressureHg:   s.pressureHg,
 		RainHr:       s.getMMLastHour(),
+		RainRate:     s.getHourlyRate(time.Now().Minute()),
 		LastTip:      s.lastTip.Format(time.RFC822),
 		TimeNow:      time.Now().Format(time.RFC822),
 		WindDir:      s.windDirection,
@@ -186,10 +197,12 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write(js)
+
+	logger.Infof("Web read: \n[%v]", js)
+	_, _ = w.Write(js) // not much we can do if this fails
 }
 
-func (s *weatherstation) initSensors() {
+func (w *weatherstation) initSensors() {
 	if _, err := host.Init(); err != nil {
 		logger.Error("Failed to init i2c bus")
 		logger.Fatal(err)
@@ -255,18 +268,18 @@ func (s *weatherstation) initSensors() {
 	if err != nil {
 		logger.Error(err)
 	}
-	defer dirPin.Halt()
+	defer dirPin.Halt() //nolint
 
-	s.bme = bme
-	s.hiResT = tempSensor
-	s.btips = make([]int, 60)
-	s.count = 0
-	s.bus = &bus
-	s.rainpin = &rainpin
-	s.windpin = &windpin
-	s.windDir = &dirPin
-	s.windhist = make([]time.Time, 300)
-	s.pHist = 0
+	w.s.bme = bme
+	w.s.hiResT = tempSensor
+	w.btips = make([]int, 60)
+	w.count = 0
+	w.s.bus = &bus
+	w.s.rainpin = &rainpin
+	w.s.windpin = &windpin
+	w.s.windDir = &dirPin
+	w.windhist = make([]time.Time, 300)
+	w.pHist = 0
 }
 
 

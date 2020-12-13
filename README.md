@@ -2,7 +2,7 @@
 
 Raspberry Pi weather station
 
-A simple weather station based on a raspberry pi. It used a BME280 sensor for pressure, temp and humidity and some generic weather station parts for the rain guage, wind speed and wind direction sensors. 
+A simple weather station based on a raspberry pi. It used a BME280 sensor for pressure, temp and humidity and some generic weather station parts for the rain guage, wind speed and wind direction sensors.
 
 It's written in go which is each to cross compile for the pi.
 
@@ -12,18 +12,18 @@ Below are just notes and common commands (easier to cut and paste than to type o
 
 ## compilation
 
- env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
+env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
 
 ## transfer and logs
 
- scp weatherServer.exe pi@192.168.1.69:/home/pi
+scp weatherServer.exe pi@192.168.1.69:/home/pi
 
- journalctl -e -u weather.service
+journalctl -e -u weather.service
 
 ## service file
 
-```
- [Unit]
+```service
+[Unit]
 Description=Weather monitor service
 After=network.target
 StartLimitIntervalSec=0
@@ -43,11 +43,11 @@ WantedBy=multi-user.target
 
 ## prometeus
 
-chgrp -R nogroup  /prometheus
+chgrp -R nogroup /prometheus
 
 docker run -d --name prometheus_weather -p 9090:9090 -v /prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml -v /prometheus/data:/prometheus prom/prometheus --config.file=/etc/prometheus/prometheus.yml
 
-```
+```yaml
 
 global:
   scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
@@ -80,7 +80,7 @@ scrape_configs:
     static_configs:
     - targets:
        # change to match weather station ip
-      - 192.168.1.69:80  
+      - 192.168.1.69:80
   - job_name: river
     scrape_interval: 30s
     static_configs:

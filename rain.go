@@ -9,47 +9,58 @@ import (
 
 const (
 	mmPerBucket float64 = 0.2794
+	hourRateMin int     = 5 // number of minutes to average for hourly rate
 )
 
-func (s *weatherstation) monitorRainGPIO() {
+func (w *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
 	for {
-		(*s.rainpin).WaitForEdge(-1)
-		s.count++
-		s.lastTip = time.Now()
+		(*w.s.rainpin).WaitForEdge(-1)
+		w.count++
+		w.lastTip = time.Now()
 	}
 }
 
-func (s *weatherstation) readRainData() {
-	go s.monitorRainGPIO()
+func (w *weatherstation) readRainData() {
+	go w.monitorRainGPIO()
 	for x := range time.Tick(time.Minute) {
 		min := x.Minute()
 		// store the bucket tip count for the last minute
-		s.btips[min] = s.count
+		w.btips[min] = w.count
 		// reset the bucket tip counter
-		s.count = 0
-		mmRainPerHour.Set(s.getMMLastHour())
-		mmRainPerMin.Set(s.getAvgMMLast3Min())
+		w.count = 0
+
+		mmhr := w.getMMLastHour()
+		rate := w.getHourlyRate(min)
+		mmRainPerHour.Set(mmhr)
+		rainRatePerHour.Set(rate)
+		logger.Infof("Rain mm total hr [%v], Rain rate [%v]", mmhr, rate)
 	}
 }
 
-func (s *weatherstation) getMMLastHour() float64 {
-	total := s.count
-	for _, x := range s.btips {
+func (w *weatherstation) getMMLastHour() float64 {
+	total := w.count
+	for _, x := range w.btips {
 		total += x
 	}
 	return math.Round(float64(total)*mmPerBucket*100) / 100
 }
 
-func (s *weatherstation) getAvgMMLast3Min() float64 {
-	min := time.Now().Minute()
-	count := 0
-	if min >= 2 {
-		count = s.count + s.btips[min-1] + s.btips[min-2]
-	} else if min == 1 {
-		count = s.count + s.btips[0] + s.btips[59]
-	} else if min == 0 {
-		count = s.count + s.btips[59] + s.btips[58]
+// work out the rate per hour assuming it continues as it has in the last 5 minutes
+func (w *weatherstation) getHourlyRate(minute int) float64 {
+	offset := minute 
+	index := 0
+	count := w.count // the current minute
+	for i := 1; i < hourRateMin; i++ {
+		index = offset - i
+		if index < 0 {
+			offset = len(w.btips) + i - 1
+			index = offset - i
+		}
+		count += w.btips[index]
 	}
-	return (float64(count) / 3 * mmPerBucket)
+
+	hourMultiplier := float64(60 / hourRateMin)
+
+	return ((float64(count) / 3 * mmPerBucket) * hourMultiplier)
 }
