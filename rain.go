@@ -9,7 +9,7 @@ import (
 
 const (
 	mmPerBucket float64 = 0.2794
-	hourRateMin int     = 5 // number of minutes to average for hourly rate
+	hourRateMin int     = 10 // number of minutes to average for hourly rate
 )
 
 func (w *weatherstation) monitorRainGPIO() {
@@ -46,7 +46,7 @@ func (w *weatherstation) getMMLastHour() float64 {
 	return math.Round(float64(total)*mmPerBucket*100) / 100
 }
 
-// work out the rate per hour assuming it continues as it has in the last 5 minutes
+// work out the rate per hour assuming it continues as it has in the last x minutes
 func (w *weatherstation) getHourlyRate(minute int) float64 {
 	offset := minute 
 	index := 0
@@ -62,5 +62,5 @@ func (w *weatherstation) getHourlyRate(minute int) float64 {
 
 	hourMultiplier := float64(60 / hourRateMin)
 
-	return ((float64(count) / 3 * mmPerBucket) * hourMultiplier)
+	return (float64(count) * mmPerBucket * hourMultiplier)
 }
