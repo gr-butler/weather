@@ -39,6 +39,7 @@ func (w *weatherstation) doAtmosphere() {
 			_ = em.Pressure.Set("740")
 		}
 	}
+	
 	logger.Infof("BME280: Temp [%8s], Pressure [%10s] Hum [%9s]", em.Temperature, em.Pressure, em.Humidity)
 	w.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
 	w.pressure = math.Round(float64(em.Pressure)/float64(100*physic.Pascal)*100) / 100
