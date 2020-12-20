@@ -7,10 +7,10 @@ import (
 func Test_weatherstation_getHourlyRate(t *testing.T) {
 	t.Log("Starting!")
 	w := weatherstation{}
-	w.btips = make([]int, 60)
+	w.btips = make([]float64, 60)
 	t.Log("Populating rain array")
 	for i := 0; i < 60; i++ {
-		w.btips[i] = i
+		w.btips[i] = float64(i)
 	}
 	t.Log("Checking...")
 	// check we don't blow up for all offsets

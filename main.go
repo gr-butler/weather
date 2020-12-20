@@ -32,21 +32,22 @@ type sensors struct {
 	windDir *ads1x15.PinADC
 }
 type weatherstation struct {
-	s                *sensors
-	btips            []int
-	count            int       // GPIO bucket tip counter
-	lastTip          time.Time // Last bucket tip
-	pressure         float64
-	pressureHg       float64
-	humidity         float64
-	temp             float64
-	hiResTemp        float64
-	instantWindSpeed float64
-	windSpeedAvg     float64
-	windDirection    float64
-	windVolts        float64
-	windhist         []time.Time
-	pHist            int
+	s             *sensors
+	btips         []float64
+	count         float64   // GPIO bucket tip counter
+	lastTip       time.Time // Last bucket tip
+	pressure      float64
+	pressureInHg  float64
+	humidity      float64
+	temp          float64
+	tempf         float64
+	hiResTemp     float64
+	windGust      float64
+	windSpeedAvg  float64
+	windDirection float64
+	windVolts     float64
+	windhist      []time.Time
+	pHist         int
 }
 
 type webdata struct {
@@ -55,7 +56,7 @@ type webdata struct {
 	TempHiRes    float64 `json:"hiResTemp_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
-	PressureHg   float64 `json:"pressure_mmHg"`
+	PressureHg   float64 `json:"pressure_InchHg"`
 	RainHr       float64 `json:"rain_mm_hr"`
 	RainRate     float64 `json:"rain_rate"`
 	LastTip      string  `json:"last_tip"`
@@ -145,7 +146,7 @@ func main() {
 	go w.readAtmosphericSensors()
 	go w.readRainData()
 	go w.readWindData()
-	go w.sendWOWData()
+	go w.MetofficeProcessor()
 
 	// start web service
 	http.HandleFunc("/", w.handler)
@@ -155,16 +156,6 @@ func main() {
 	logger.Fatal(http.ListenAndServe(":80", nil))
 }
 
-// Send to met office wow site
-func (w *weatherstation) sendWOWData() {
-	for min := range time.Tick(time.Minute) {
-		if min.Minute()%15 == 0 {
-			logger.Info("Sending data to met office")
-			//TODO
-		}
-	}
-}
-
 func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	wd := webdata{
@@ -172,14 +163,14 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 		TempHiRes:    s.hiResTemp,
 		Humidity:     s.humidity,
 		Pressure:     s.pressure,
-		PressureHg:   s.pressureHg,
+		PressureHg:   s.pressureInHg,
 		RainHr:       s.getMMLastHour(),
 		RainRate:     s.getHourlyRate(time.Now().Minute()),
 		LastTip:      s.lastTip.Format(time.RFC822),
 		TimeNow:      time.Now().Format(time.RFC822),
 		WindDir:      s.windDirection,
 		WindVolts:    s.windVolts,
-		WindSpeed:    s.instantWindSpeed,
+		WindSpeed:    s.windGust,
 		WindSpeedAvg: s.windSpeedAvg,
 	}
 
@@ -261,7 +252,7 @@ func (w *weatherstation) initSensors() {
 
 	w.s.bme = bme
 	w.s.hiResT = tempSensor
-	w.btips = make([]int, 60)
+	w.btips = make([]float64, 60)
 	w.count = 0
 	w.s.bus = &bus
 	w.s.rainpin = &rainpin

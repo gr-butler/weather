@@ -10,6 +10,17 @@ I use a prometheus time series database to scrape and record the values. These a
 
 Below are just notes and common commands (easier to cut and paste than to type out each time!)
 
+## MetOffice
+
+The UK Met Office run an observation site for user to submit thier own data.
+
+<https://wow.metoffice.gov.uk>
+
+We send data to the Met Office if the two relevent env variables are set:
+
+WOWSITEID The site ID
+WOWPIN The site PIN
+
 ## compilation
 
 env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe

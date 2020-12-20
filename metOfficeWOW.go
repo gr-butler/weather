@@ -1,6 +1,10 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -50,35 +54,72 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 
 */
 
-// MetofficeProcessor called as a go routing will send data to the wow url every 15 mins
-// on the hour, then 15, 30 and 45 past
+const reportFreqMin = 10
+const tipToInch = 0.011
+const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
+
+// MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
 	for min := range time.Tick(time.Minute) {
-		if min.Minute()%15 == 0 {
+		if min.Minute()%reportFreqMin == 0 {
 			logger.Info("Sending data to met office")
-			//TODO
+			data, err := w.prepData(min.Minute())
+			if err != nil {
+				logger.Errorf("Failed to process data [%v]", err)
+				continue
+			}
+			logger.Infof("Data: [%v]", data.Encode())
+			// Metoffice accepts a GET... which is easier so wth
+			resp, err := http.Get(baseUrl + data.Encode())
+			if err != nil {
+				logger.Errorf("Failed to POST data [%v]", err)
+				continue
+			}
+			if resp.StatusCode != 200 {
+				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
+			}
 		}
 	}
 }
 
 // build the map with the required data
-func (w *weatherstation) prepData() {
-	wowData := make(map[string]string)
+func (w *weatherstation) prepData(min int) (url.Values, error) {
+	//wowData := make(map[string]string)
+	wowData := url.Values{}
 
 	wowsiteid, idok := os.LookupEnv("WOWSITEID")
 	wowpin, pinok := os.LookupEnv("WOWPIN")
 
 	if !(idok && pinok) {
 		logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-		return
+		return nil, errors.New("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
 	}
 
-	wowData["siteid"] = wowsiteid
-	wowData["siteAuthenticationKey"] = wowpin
+	// user info
+	wowData.Add("siteid", wowsiteid)
+	wowData.Add("siteAuthenticationKey", wowpin)
 
-	// need the date in their odd format. go magic adte Mon Jan 2 15:04:05 MST 2006
-	// 	The date must be in the following format: YYYY-mm-DD HH:mm:ss, where ':' is encoded as %3A, and the space is encoded as either '+' or %20. An example,
-	// valid date would be: 2011-02-29+10%3A32%3A55, for the 2nd of Feb, 2011 at 10:32:55. Note that the time is in 24 hour format. Also note that the date must be adjusted to UTC time
-	wowData["dateutc"] = time.Now().UTC().Format("2006-01-02+15%3A04%3A05")
-	wowData["softwaretype"] = "GRB-Weather-0.1.0"
+	// Timestamp
+	// go magic date is Mon Jan 2 15:04:05 MST 2006
+	// "The date must be in the following format: YYYY-mm-DD HH:mm:ss"
+	wowData.Add("dateutc", time.Now().UTC().Format("2006-01-02+15:04:05"))
+	// system info
+	wowData.Add("softwaretype", "GRB-Weather-0.1.0")
+
+	// data
+	wowData.Add("baromin", fmt.Sprintf("%.2f", w.pressureInHg))
+	wowData.Add("humidity", fmt.Sprintf("%0.2f", w.humidity))
+	// rain inches since last reading
+	tips := SumLastRange(min, reportFreqMin, w.count, &w.btips)
+	// 1 tip = 0.2794mm = 0.011 inch
+	wowData.Add("rainin", fmt.Sprintf("%0.2f", RoundTo(2, tips*tipToInch)))
+	wowData.Add("tempf", fmt.Sprintf("%0.2f", w.tempf))
+	wowData.Add("winddir", fmt.Sprintf("%0.2f", w.windDirection))
+	wowData.Add("windspeedmph", fmt.Sprintf("%0.2f", w.windSpeedAvg))
+	wowData.Add("windgustdir", fmt.Sprintf("%0.2f", w.windDirection))
+	wowData.Add("windgustmph", fmt.Sprintf("%0.2f", w.windGust))
+	//Td = T - ((100 - RH)/5.)
+	dewf := ((((w.hiResTemp +273) - ((100 - (w.humidity))/5.0)) - 273) * 9 / 5.0) + 32
+	wowData.Add("dewptf", fmt.Sprintf("%0.2f", dewf))
+	return wowData, nil
 }
