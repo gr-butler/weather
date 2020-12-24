@@ -122,12 +122,14 @@ func (w *weatherstation) processWindSpeed() {
 				}
 			}
 			avg = avg / 4
-			w.instantWindSpeed = math.Round(max*100) / 100
+			w.windGust = math.Round(max*100) / 100
 			windgust.Set(max)
-			rAvg :=  math.Round(avg*100) / 100
+			rAvg := math.Round(avg*100) / 100
 			lastMin[pLastMin] = rAvg
 			pLastMin++
-			logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
+			if pLastMin%10 == 0 {
+				logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
+			}
 		}
 		if pLastMin == 60 {
 			// 60 seconds worth

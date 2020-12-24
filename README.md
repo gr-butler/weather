@@ -10,13 +10,24 @@ I use a prometheus time series database to scrape and record the values. These a
 
 Below are just notes and common commands (easier to cut and paste than to type out each time!)
 
+## MetOffice
+
+The UK Met Office run an observation site for users to submit thier own data.
+
+<https://wow.metoffice.gov.uk>
+
+We send data to the Met Office if the two relevent env variables are set:
+
+WOWSITEID The site ID
+WOWPIN The site PIN
+
 ## compilation
 
 env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
 
 ## transfer and logs
 
-scp weatherServer.exe pi@192.168.1.69:/home/pi
+scp weatherServer.exe pi@192.168.1.xxx:/home/pi
 
 journalctl -e -u weather.service
 
@@ -34,6 +45,8 @@ Type=simple
 Restart=always
 RestartSec=1
 User=root
+Environment=WOWSITEID=aaa-bbb-ccc-ddd-eee-fff
+Environment=WOWPIN=0123456789
 ExecStart=/usr/local/bin/weatherServer.exe
 ExecStartPre=/bin/sh -c "cp -f /home/pi/weatherServer.exe /usr/local/bin"
 

@@ -48,17 +48,19 @@ func (w *weatherstation) getMMLastHour() float64 {
 
 // work out the rate per hour assuming it continues as it has in the last x minutes
 func (w *weatherstation) getHourlyRate(minute int) float64 {
-	offset := minute 
-	index := 0
-	count := w.count // the current minute
-	for i := 1; i < hourRateMin; i++ {
-		index = offset - i
-		if index < 0 {
-			offset = len(w.btips) + i - 1
-			index = offset - i
-		}
-		count += w.btips[index]
-	}
+	// offset := minute
+	// index := 0
+	// count := w.count // the current minute
+	// for i := 1; i < hourRateMin; i++ {
+	// 	index = offset - i
+	// 	if index < 0 {
+	// 		offset = len(w.btips) + i - 1
+	// 		index = offset - i
+	// 	}
+	// 	count += w.btips[index]
+	// }
+
+	count := SumLastRange(minute, hourRateMin, float64(w.count), &w.btips)
 
 	hourMultiplier := float64(60 / hourRateMin)
 

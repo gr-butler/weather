@@ -24,29 +24,30 @@ import (
 )
 
 type sensors struct {
-	bme              *bmxx80.Dev
-	hiResT           *mcp9808.Dev
-	bus              *i2c.BusCloser
-	rainpin          *gpio.PinIO
-	windpin          *gpio.PinIO
-	windDir          *ads1x15.PinADC
+	bme     *bmxx80.Dev
+	hiResT  *mcp9808.Dev
+	bus     *i2c.BusCloser
+	rainpin *gpio.PinIO
+	windpin *gpio.PinIO
+	windDir *ads1x15.PinADC
 }
 type weatherstation struct {
-	s                *sensors
-	btips            []int
-	count            int       // GPIO bucket tip counter
-	lastTip          time.Time // Last bucket tip	
-	pressure         float64
-	pressureHg       float64
-	humidity         float64
-	temp             float64
-	hiResTemp        float64
-	instantWindSpeed float64
-	windSpeedAvg     float64
-	windDirection    float64
-	windVolts        float64
-	windhist         []time.Time
-	pHist            int
+	s             *sensors
+	btips         []float64
+	count         float64   // GPIO bucket tip counter
+	lastTip       time.Time // Last bucket tip
+	pressure      float64
+	pressureInHg  float64
+	humidity      float64
+	temp          float64
+	tempf         float64
+	hiResTemp     float64
+	windGust      float64
+	windSpeedAvg  float64
+	windDirection float64
+	windVolts     float64
+	windhist      []time.Time
+	pHist         int
 }
 
 type webdata struct {
@@ -55,7 +56,7 @@ type webdata struct {
 	TempHiRes    float64 `json:"hiResTemp_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
-	PressureHg   float64 `json:"pressure_mmHg"`
+	PressureHg   float64 `json:"pressure_InchHg"`
 	RainHr       float64 `json:"rain_mm_hr"`
 	RainRate     float64 `json:"rain_rate"`
 	LastTip      string  `json:"last_tip"`
@@ -64,7 +65,6 @@ type webdata struct {
 	WindSpeed    float64 `json:"wind_speed"`
 	WindSpeedAvg float64 `json:"wind_speed_avg"`
 }
-
 
 var atmPresure = prometheus.NewGauge(
 	prometheus.GaugeOpts{
@@ -132,14 +132,7 @@ var windDirection = prometheus.NewGauge(
 // called by prometheus
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
-	prometheus.MustRegister(atmPresure)
-	prometheus.MustRegister(mmRainPerHour)
-	prometheus.MustRegister(rh)
-	prometheus.MustRegister(temperature, altTemp)
-	prometheus.MustRegister(rainRatePerHour)
-	prometheus.MustRegister(windspeed)
-	prometheus.MustRegister(windgust)
-	prometheus.MustRegister(windDirection)
+	prometheus.MustRegister(atmPresure, mmRainPerHour, rh, temperature, altTemp, rainRatePerHour, windspeed, windgust, windDirection)
 }
 
 func main() {
@@ -153,7 +146,7 @@ func main() {
 	go w.readAtmosphericSensors()
 	go w.readRainData()
 	go w.readWindData()
-	go w.sendWOWData()
+	go w.MetofficeProcessor()
 
 	// start web service
 	http.HandleFunc("/", w.handler)
@@ -163,16 +156,6 @@ func main() {
 	logger.Fatal(http.ListenAndServe(":80", nil))
 }
 
-// Send to met office wow site
-func (w *weatherstation) sendWOWData(){
-	for min := range time.Tick(time.Minute) {
-		if min.Minute() % 15 == 0 {
-			logger.Info("Sending data to met office")
-			//TODO
-		}
-	}
-}
-
 func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	wd := webdata{
@@ -180,20 +163,20 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 		TempHiRes:    s.hiResTemp,
 		Humidity:     s.humidity,
 		Pressure:     s.pressure,
-		PressureHg:   s.pressureHg,
+		PressureHg:   s.pressureInHg,
 		RainHr:       s.getMMLastHour(),
 		RainRate:     s.getHourlyRate(time.Now().Minute()),
 		LastTip:      s.lastTip.Format(time.RFC822),
 		TimeNow:      time.Now().Format(time.RFC822),
 		WindDir:      s.windDirection,
 		WindVolts:    s.windVolts,
-		WindSpeed:    s.instantWindSpeed,
+		WindSpeed:    s.windGust,
 		WindSpeedAvg: s.windSpeedAvg,
 	}
 
 	js, err := json.Marshal(wd)
 	if err != nil {
-		logger.Errorf("JSON error [%v]" , err)
+		logger.Errorf("JSON error [%v]", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -210,8 +193,6 @@ func (w *weatherstation) initSensors() {
 	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
 	temperatureAddr := flag.Int("address", 0x18, "I²C address")
 
-	
-
 	// Open default I²C bus.
 	bus, err := i2creg.Open(*i2cbus)
 	if err != nil {
@@ -223,7 +204,6 @@ func (w *weatherstation) initSensors() {
 	if err != nil {
 		logger.Errorf("failed to open MCP9808 sensor: %v", err)
 	}
-
 
 	logger.Info("Starting BMP280 reader...")
 	bme, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
@@ -272,7 +252,7 @@ func (w *weatherstation) initSensors() {
 
 	w.s.bme = bme
 	w.s.hiResT = tempSensor
-	w.btips = make([]int, 60)
+	w.btips = make([]float64, 60)
 	w.count = 0
 	w.s.bus = &bus
 	w.s.rainpin = &rainpin
@@ -281,5 +261,3 @@ func (w *weatherstation) initSensors() {
 	w.windhist = make([]time.Time, 300)
 	w.pHist = 0
 }
-
-
