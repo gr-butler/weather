@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,6 +11,11 @@ import (
 
 	logger "github.com/sirupsen/logrus"
 )
+
+const Rd = 287.1
+const g = 9.807  // gravity
+const z0 = 24.71 // River aAD is 16.61, river height at 4.1m is level with the road and I'm 3m above that
+const kelvin = 273.1
 
 /*
 
@@ -107,19 +113,40 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	wowData.Add("softwaretype", "GRB-Weather-0.1.0")
 
 	// data
-	wowData.Add("baromin", fmt.Sprintf("%.2f", w.pressureInHg))
-	wowData.Add("humidity", fmt.Sprintf("%0.2f", w.humidity))
+	/*
+		3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
+	*/
+
+	tempK := w.hiResTemp + kelvin
+
+	/*
+		4. Compute the scale height H = RdT/g, where Rd = 287.1 J/(kg K) and g = 9.807 m/s2.
+		Be sure to record H to at least 4 significant figures.
+	*/
+
+	H := (Rd * tempK) / g
+
+	/*
+		5. Compute the sea level pressure psl from
+		psl = p0 exp(z0/H)
+		where p0 is the observed pressure and z0 is the altitude above sea level where you
+		made your pressure observation.
+	*/
+
+	mslp := w.pressureInHg * math.Exp(z0/H)
+
+	wowData.Add("baromin", fmt.Sprintf("%f", mslp))
+	wowData.Add("humidity", fmt.Sprintf("%0f", w.humidity))
 	// rain inches since last reading
 	tips := SumLastRange(min, reportFreqMin, w.count, &w.btips)
 	// 1 tip = 0.2794mm = 0.011 inch
 	wowData.Add("rainin", fmt.Sprintf("%0.2f", RoundTo(2, tips*tipToInch)))
-	wowData.Add("tempf", fmt.Sprintf("%0.2f", w.tempf))
+	wowData.Add("tempf", fmt.Sprintf("%0f", w.tempf))
 	wowData.Add("winddir", fmt.Sprintf("%0.2f", w.windDirection))
 	wowData.Add("windspeedmph", fmt.Sprintf("%0.2f", w.windSpeedAvg))
-	wowData.Add("windgustdir", fmt.Sprintf("%0.2f", w.windDirection))
 	wowData.Add("windgustmph", fmt.Sprintf("%0.2f", w.windGust))
 	//Td = T - ((100 - RH)/5.)
-	dewf := ((((w.hiResTemp +273) - ((100 - (w.humidity))/5.0)) - 273) * 9 / 5.0) + 32
-	wowData.Add("dewptf", fmt.Sprintf("%0.2f", dewf))
+	dewf := ((((w.hiResTemp + 273) - ((100 - (w.humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
+	wowData.Add("dewptf", fmt.Sprintf("%0f", dewf))
 	return wowData, nil
 }
