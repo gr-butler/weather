@@ -92,10 +92,8 @@ OR should we just report instant to prometeus and let it do the calcualtion?
 */
 
 func (w *weatherstation) processWindSpeed() {
-	lastMin := make([]float64, 60)
-	pLastMin := 0
-	lastfour := make([]float64, 4)
-	pLastfour := 0
+	samples := make([]float64, 240)
+	pSamples := 0
 	avg := 0.0
 	max := 0.0
 	// initial values
@@ -103,47 +101,36 @@ func (w *weatherstation) processWindSpeed() {
 	windgust.Set(livespeed)
 	// start ticker
 	for range time.Tick(time.Millisecond * 250) {
-		lastfour[pLastfour] = livespeed
-		// set livespeed to zero as if the wind stops we won't know!
+		// record the current speed
+		samples[pSamples] = livespeed
+		// set livespeed to zero as if the wind stops by next loop we won't know!
 		if livespeed > 0 {
-			livespeed = 0
+			livespeed = 0 // TODO is this also ballsing up calculation
+			// are we generating a lot of zeros which are screwing the average?
 		}
-		pLastfour++
-		if pLastfour == 4 {
-			// happens once per second
-			pLastfour = 0
+		pSamples++
+		if pSamples == len(samples) {
+			// happens once per minute
+			pSamples = 0
 			avg = 0.0
 			max = 0.0
 			// find max and avg values
-			for _, v := range lastfour {
+			for _, v := range samples {
 				avg += v
 				if v > max {
 					max = v
 				}
 			}
-			avg = avg / 4
+			avg = avg / float64(len(samples))
 			w.windGust = math.Round(max*100) / 100
 			windgust.Set(max)
 			rAvg := math.Round(avg*100) / 100
-			lastMin[pLastMin] = rAvg
-			pLastMin++
-			if pLastMin%10 == 0 {
+			w.windSpeedAvg = rAvg
+			windspeed.Set(w.windSpeedAvg)
+			if pSamples%10 == 0 {
 				logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
 			}
 		}
-		if pLastMin == 60 {
-			// 60 seconds worth
-			avg = 0
-			pLastMin = 0
-			for _, v := range lastMin {
-				avg += v
-			}
-			avg = avg / 60
-			w.windSpeedAvg = math.Round(avg*100) / 100
-			logger.Infof("Setting wind speed [%.2f]", w.windSpeedAvg)
-			windspeed.Set(w.windSpeedAvg)
-		}
-
 	}
 }
 

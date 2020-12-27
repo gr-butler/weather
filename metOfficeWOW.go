@@ -140,11 +140,11 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// rain inches since last reading
 	tips := SumLastRange(min, reportFreqMin, w.count, &w.btips)
 	// 1 tip = 0.2794mm = 0.011 inch
-	wowData.Add("rainin", fmt.Sprintf("%0.2f", RoundTo(2, tips*tipToInch)))
+	wowData.Add("rainin", fmt.Sprintf("%f", (tips*tipToInch)))
 	wowData.Add("tempf", fmt.Sprintf("%0f", w.tempf))
 	wowData.Add("winddir", fmt.Sprintf("%0.2f", w.windDirection))
-	wowData.Add("windspeedmph", fmt.Sprintf("%0.2f", w.windSpeedAvg))
-	wowData.Add("windgustmph", fmt.Sprintf("%0.2f", w.windGust))
+	wowData.Add("windspeedmph", fmt.Sprintf("%f", w.windSpeedAvg))
+	wowData.Add("windgustmph", fmt.Sprintf("%f", w.windGust))
 	//Td = T - ((100 - RH)/5.)
 	dewf := ((((w.hiResTemp + 273) - ((100 - (w.humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
 	wowData.Add("dewptf", fmt.Sprintf("%0f", dewf))
