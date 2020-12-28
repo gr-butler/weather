@@ -82,17 +82,8 @@ func (w *weatherstation) monitorWindGPIO() {
 	}
 }
 
-/*
-TODO:
-"A better measure of the overall wind intensity is defined by the average speed
-and direction over the ten minute period leading up to the reporting time."
-
-OR should we just report instant to prometeus and let it do the calcualtion?
-
-*/
-
 func (w *weatherstation) processWindSpeed() {
-	samples := make([]float64, 240)
+	samples := make([]float64, 1000)
 	pSamples := 0
 	avg := 0.0
 	max := 0.0
@@ -100,7 +91,7 @@ func (w *weatherstation) processWindSpeed() {
 	windspeed.Set(livespeed)
 	windgust.Set(livespeed)
 	// start ticker
-	for range time.Tick(time.Millisecond * 250) {
+	for t := range time.Tick(time.Millisecond * 250) {
 		// record the current speed
 		samples[pSamples] = livespeed
 		// set livespeed to zero as if the wind stops by next loop we won't know!
@@ -110,8 +101,10 @@ func (w *weatherstation) processWindSpeed() {
 		}
 		pSamples++
 		if pSamples == len(samples) {
-			// happens once per minute
 			pSamples = 0
+		}
+		if t.Second() == 0 && (pSamples%4) == 0 {
+			// happens once per minute
 			avg = 0.0
 			max = 0.0
 			// find max and avg values
@@ -127,9 +120,7 @@ func (w *weatherstation) processWindSpeed() {
 			rAvg := math.Round(avg*100) / 100
 			w.windSpeedAvg = rAvg
 			windspeed.Set(w.windSpeedAvg)
-			if pSamples%10 == 0 {
-				logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
-			}
+			logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
 		}
 	}
 }
