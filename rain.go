@@ -15,7 +15,7 @@ const (
 
 func (w *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
-	defer (*w.s.rainpin).Halt()
+	defer func() { _ = (*w.s.rainpin).Halt() }()
 	for {
 		(*w.s.rainpin).WaitForEdge(-1)
 		if (*w.s.rainpin).Read() == gpio.Low {
@@ -23,6 +23,7 @@ func (w *weatherstation) monitorRainGPIO() {
 			w.lastTip = time.Now()
 			logger.Infof("Bucket tip. [%v]", w.count)
 		}
+		time.Sleep(time.Second)
 	}
 }
 

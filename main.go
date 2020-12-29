@@ -25,6 +25,7 @@ import (
 )
 
 const version = "GRB-Weather-0.1.1"
+
 type sensors struct {
 	bme     *bmxx80.Dev
 	hiResT  *mcp9808.Dev
@@ -138,6 +139,7 @@ func init() {
 }
 
 func main() {
+	logger.Infof("Starting weather station [%v]", version)
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
 	w.s = &sensors{}

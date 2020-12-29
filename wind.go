@@ -63,11 +63,19 @@ func (s *weatherstation) readWindData() {
 	}
 }
 
-// watch the gpio port on tick calculate the instantanious wind speed.
+// monitorWindGPIO watch the gpio port on tick calculate the instantanious wind speed.
+// The GPIO pin is NOT debounced in hardware. I started seeing crazy windspeeds occasionally
+// e.g. 1423MPH on a clear afternoon! It's difficult to prove what caused that but the best
+// guess is EITHER a bounce created two very rapid ticks OR EMF interference generated a series
+// of pulses.
+// Ideally we need some hardware debounce - until then we can mitigate against this.
+// The sensor produces 1 pulse per second for 1.423MPH, 100 pps would be 142.3MPH - not something
+// you'd see in the UK and if we did it would probably destroy my sensor array! So if we add a 10ms
+// delay to the end of the loop then this would allow any bouncing to stop and we would loop back
+// to the blocking WaitForEdge in plenty of time for normal wind speeds.
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	defer (*w.s.windpin).Halt()
-	defer logger.Info("Wind speed STOP")
+	defer func() { _ = (*w.s.windpin).Halt() }()
 	lasttick := time.Now().Add(time.Duration(-1) * time.Second)
 	var edge time.Time
 	for {
@@ -80,6 +88,8 @@ func (w *weatherstation) monitorWindGPIO() {
 			livespeed = speed
 			lasttick = edge
 		}
+		time.Sleep(time.Millisecond * 10) // wait for any bouncing to stop
+		// 100rps ~ 143MPH -> 10ms per tick, so the above delay won't affect anything
 	}
 }
 

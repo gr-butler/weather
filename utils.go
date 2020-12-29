@@ -1,7 +1,5 @@
 package main
 
-import "math"
-
 // SumLastRange sums the last <size> values in the given array starting at <start>
 // <current> provides a starting count if needed
 func SumLastRange(start int, size int, current float64, data *[]float64) float64 {
@@ -20,7 +18,7 @@ func SumLastRange(start int, size int, current float64, data *[]float64) float64
 	return count
 }
 
-func RoundTo(places int, value float64) float64 {
-	val := math.Pow(float64(places), 10)
-	return math.Round(float64(value)*val) / val
-}
+// func RoundTo(places int, value float64) float64 {
+// 	val := math.Pow(float64(places), 10)
+// 	return math.Round(float64(value)*val) / val
+// }
