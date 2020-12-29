@@ -20,6 +20,7 @@ func (w *weatherstation) monitorRainGPIO() {
 		if (*w.s.rainpin).Read() == gpio.Low {
 			w.count++
 			w.lastTip = time.Now()
+			logger.Info("Bucket tip. [%v]", w.count)
 		}
 	}
 }
