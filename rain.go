@@ -15,6 +15,7 @@ const (
 
 func (w *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
+	defer (*w.s.rainpin).Halt()
 	for {
 		(*w.s.rainpin).WaitForEdge(-1)
 		if (*w.s.rainpin).Read() == gpio.Low {

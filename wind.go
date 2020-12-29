@@ -66,6 +66,7 @@ func (s *weatherstation) readWindData() {
 // watch the gpio port on tick calculate the instantanious wind speed.
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
+	defer (*w.s.windpin).Halt()
 	defer logger.Info("Wind speed STOP")
 	lasttick := time.Now().Add(time.Duration(-1) * time.Second)
 	var edge time.Time

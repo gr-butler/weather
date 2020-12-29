@@ -110,7 +110,7 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// "The date must be in the following format: YYYY-mm-DD HH:mm:ss"
 	wowData.Add("dateutc", time.Now().UTC().Format("2006-01-02+15:04:05"))
 	// system info
-	wowData.Add("softwaretype", "GRB-Weather-0.1.0")
+	wowData.Add("softwaretype", version)
 
 	// data
 	/*
