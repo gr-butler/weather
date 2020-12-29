@@ -16,6 +16,7 @@ import (
 	"periph.io/x/periph/conn/i2c/i2creg"
 	"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/devices/bmxx80"
+	"periph.io/x/periph/experimental/conn/gpio/gpioutil"
 	"periph.io/x/periph/experimental/devices/ads1x15"
 	"periph.io/x/periph/experimental/devices/mcp9808"
 	"periph.io/x/periph/host"
@@ -214,17 +215,26 @@ func (w *weatherstation) initSensors() {
 	logger.Info("Starting MCP9808 Temperature Sensor")
 
 	// Lookup a rainpin by its number:
-	rainpin := gpioreg.ByName("GPIO17")
-	if rainpin == nil {
+	rp := gpioreg.ByName("GPIO17")
+	if rp == nil {
 		logger.Error("Failed to find GPIO17")
 	}
 
-	logger.Infof("%s: %s", rainpin, rainpin.Function())
+	logger.Infof("%s: %s", rp, rp.Function())
 
-	if err = rainpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
+	// if err = rainpin.In(gpio.PullUp, gpio.BothEdges); err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// Set up debounced pin
+	// Ignore glitches lasting less than 3ms, and ignore repeated edges within
+	// 300ms.
+	rainpin, err := gpioutil.Debounce(rp, 3*time.Millisecond, 300*time.Millisecond, gpio.FallingEdge)
+	if err != nil {
 		log.Fatal(err)
 	}
-	// Lookup a rainpin by its number:
+
+	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName("GPIO27")
 	if windpin == nil {
 		logger.Error("Failed to find GPIO27")

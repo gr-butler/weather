@@ -5,6 +5,7 @@ import (
 	"time"
 
 	logger "github.com/sirupsen/logrus"
+	"periph.io/x/periph/conn/gpio"
 )
 
 const (
@@ -16,8 +17,10 @@ func (w *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
 	for {
 		(*w.s.rainpin).WaitForEdge(-1)
-		w.count++
-		w.lastTip = time.Now()
+		if (*w.s.rainpin).Read() == gpio.Low {
+			w.count++
+			w.lastTip = time.Now()
+		}
 	}
 }
 
