@@ -24,7 +24,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-0.1.2"
+const version = "GRB-Weather-0.1.3"
 
 type sensors struct {
 	bme     *bmxx80.Dev
@@ -185,7 +185,7 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger.Infof("Web read: \n[%v]", js)
+	logger.Infof("Web read: \n[%v]", string(js))
 	_, _ = w.Write(js) // not much we can do if this fails
 }
 
@@ -248,6 +248,11 @@ func (w *weatherstation) initSensors() {
 	if err = windpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
 		logger.Error(err)
 	}
+
+	// windpin, err := gpioutil.Debounce(rp, 0, 10*time.Millisecond, gpio.FallingEdge)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	logger.Info("Starting Wind direction ADC")
 	// Create a new ADS1115 ADC.

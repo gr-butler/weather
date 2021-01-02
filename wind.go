@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"time"
 
 	logger "github.com/sirupsen/logrus"
@@ -63,16 +62,13 @@ func (s *weatherstation) readWindData() {
 	}
 }
 
-// monitorWindGPIO watch the gpio port on tick calculate the instantanious wind speed.
-// The GPIO pin is NOT debounced in hardware. I started seeing crazy windspeeds occasionally
-// e.g. 1423MPH on a clear afternoon! It's difficult to prove what caused that but the best
-// guess is EITHER a bounce created two very rapid ticks OR EMF interference generated a series
-// of pulses.
-// Ideally we need some hardware debounce - until then we can mitigate against this.
-// The sensor produces 1 pulse per second for 1.423MPH, 100 pps would be 142.3MPH - not something
-// you'd see in the UK and if we did it would probably destroy my sensor array! So if we add a 10ms
-// delay to the end of the loop then this would allow any bouncing to stop and we would loop back
-// to the blocking WaitForEdge in plenty of time for normal wind speeds.
+var pcount = 0
+var wsum   = 0.0
+var wmax   = 0.0
+
+// monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
+// WaitForEdge returns immediately IF another pulse has arrived since the last call. 
+// need to make sure any queue is cleared before we restart the loop
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
@@ -81,58 +77,56 @@ func (w *weatherstation) monitorWindGPIO() {
 	for {
 		(*w.s.windpin).WaitForEdge(-1)
 		edge = time.Now()
-		period := edge.Sub(lasttick).Milliseconds()
+		period := edge.Sub(lasttick).Seconds()
 		if period != 0 {
-			freq := float64(1000 / period)
+			freq := float64(1 / period)
 			speed := freq * mphPerTick
 			livespeed = speed
+			//logger.Infof(">>>>> Wind pulse p[%.4f] f[%.4f] s[%2.2f]", period, freq, speed)
 			lasttick = edge
+			pcount++
+			wsum += livespeed
+			if livespeed > wmax {
+				wmax = livespeed
+			}
 		}
-		time.Sleep(time.Millisecond * 10) // wait for any bouncing to stop
-		// 100rps ~ 143MPH -> 10ms per tick, so the above delay won't affect anything
+		// need to clear out any pulses that have arrived since
+		// almost certain to be junk unless we're in a hurracane on jupiter
+		var crud bool
+		for {
+			// wait for edge with small timeout
+			// "Returns true if an edge was detected during or before this call"
+			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
+			// if we hit timeout crud = false, then we exit
+			if !crud {
+				break
+			}
+		}
 	}
 }
 
 func (w *weatherstation) processWindSpeed() {
-	samples := make([]float64, 1000)
-	pSamples := 0
 	avg := 0.0
-	max := 0.0
 	// initial values
 	windspeed.Set(livespeed)
 	windgust.Set(livespeed)
 	// start ticker
-	for t := range time.Tick(time.Millisecond * 250) {
-		// record the current speed
-		samples[pSamples] = livespeed
-		// set livespeed to zero as if the wind stops by next loop we won't know!
-		if livespeed > 0 {
-			livespeed = 0 // TODO is this also ballsing up calculation
-			// are we generating a lot of zeros which are screwing the average?
+	for range time.Tick(time.Minute) {		
+		if pcount > 0 {
+			avg = wsum / float64(pcount)
 		}
-		pSamples++
-		if pSamples == len(samples) {
-			pSamples = 0
+		w.windSpeedAvg = avg
+		windspeed.Set(avg)
+		if avg > wmax { // TODO !!FUDGE!! occasionally see avg > max, since we're not thread safe...
+			w.windGust = avg
+			windgust.Set(avg)
+		} else {
+			w.windGust = wmax
+			windgust.Set(wmax)
 		}
-		if t.Second() == 0 && (pSamples%4) == 0 {
-			// happens once per minute
-			avg = 0.0
-			max = 0.0
-			// find max and avg values
-			for _, v := range samples {
-				avg += v
-				if v > max {
-					max = v
-				}
-			}
-			avg = avg / float64(len(samples))
-			w.windGust = math.Round(max*100) / 100
-			windgust.Set(max)
-			rAvg := math.Round(avg*100) / 100
-			w.windSpeedAvg = rAvg
-			windspeed.Set(w.windSpeedAvg)
-			logger.Infof("Wind Avg [%.2f] Gust [%.2f]", rAvg, max)
-		}
+		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
+		wmax = 0.0
+		avg = 0.0
 	}
 }
 
