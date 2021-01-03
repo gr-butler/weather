@@ -52,22 +52,21 @@ const (
 
 var (
 	livespeed float64 = 0
+	pcount            = 0
+	wsum              = 0.0
+	wmax              = 0.0
 )
 
 func (s *weatherstation) readWindData() {
 	go s.monitorWindGPIO()
-	go s.processWindSpeed()
-	for range time.Tick(time.Second * 10) {
+	go s.recordWindSpeed()
+	for range time.Tick(time.Second * 30) {
 		s.readWindDirection()
 	}
 }
 
-var pcount = 0
-var wsum   = 0.0
-var wmax   = 0.0
-
 // monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
-// WaitForEdge returns immediately IF another pulse has arrived since the last call. 
+// WaitForEdge returns immediately IF another pulse has arrived since the last call.
 // need to make sure any queue is cleared before we restart the loop
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
@@ -105,28 +104,30 @@ func (w *weatherstation) monitorWindGPIO() {
 	}
 }
 
-func (w *weatherstation) processWindSpeed() {
+func (w *weatherstation) recordWindSpeed() {
 	avg := 0.0
 	// initial values
 	windspeed.Set(livespeed)
 	windgust.Set(livespeed)
 	// start ticker
-	for range time.Tick(time.Minute) {		
+	for range time.Tick(time.Minute) {
+		avg = 0.0
 		if pcount > 0 {
 			avg = wsum / float64(pcount)
 		}
-		w.windSpeedAvg = avg
 		windspeed.Set(avg)
-		if avg > wmax { // TODO !!FUDGE!! occasionally see avg > max, since we're not thread safe...
-			w.windGust = avg
-			windgust.Set(avg)
-		} else {
-			w.windGust = wmax
-			windgust.Set(wmax)
-		}
+		windgust.Set(wmax)
 		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
+		//TODO need two sets - one for the prometeus live reporting and one for the 
+		// 10 min met office report
+		// if t.Minute()%10 == 0 && t.Second() == 0 {
+		// 	logger.Infof("Reporting: Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
+		w.windSpeedAvg = avg
+		w.windGust = wmax
 		wmax = 0.0
-		avg = 0.0
+		wsum = 0.0
+		pcount = 0
+		// }
 	}
 }
 
