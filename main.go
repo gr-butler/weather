@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"log"
 	"net/http"
 	"time"
 
@@ -24,7 +23,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-0.1.5"
+const version = "GRB-Weather-0.1.6"
 
 type sensors struct {
 	bme     *bmxx80.Dev
@@ -51,6 +50,8 @@ type weatherstation struct {
 	windVolts     float64
 	windhist      []time.Time
 	pHist         int
+	tGood         bool  // true if temp readings are good
+	aGood         bool  // true if the atmostperic readings are good
 }
 
 type webdata struct {
@@ -143,8 +144,12 @@ func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
 	w.s = &sensors{}
-	w.initSensors()
+	err := w.initSensors()
 	defer (*w.s.bus).Close()
+	if err != nil {
+		logger.Errorf("Failed to initialise sensors!! [%v]", err)
+		logger.Exit(1)
+	}
 
 	// start go routines
 	go w.readAtmosphericSensors()
@@ -189,10 +194,10 @@ func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(js) // not much we can do if this fails
 }
 
-func (w *weatherstation) initSensors() {
+func (w *weatherstation) initSensors() error {
 	if _, err := host.Init(); err != nil {
-		logger.Error("Failed to init i2c bus")
-		logger.Fatal(err)
+		logger.Errorf("Failed to init i2c bus [%v]", err)
+		return err
 	}
 	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
 	temperatureAddr := flag.Int("address", 0x18, "I²C address")
@@ -201,18 +206,24 @@ func (w *weatherstation) initSensors() {
 	bus, err := i2creg.Open(*i2cbus)
 	if err != nil {
 		logger.Fatalf("failed to open I²C: %v", err)
+		_ = bus.Close()
+		return err
 	}
 
 	// Create a new temperature sensor a sense with default options.
 	tempSensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *temperatureAddr})
 	if err != nil {
 		logger.Errorf("failed to open MCP9808 sensor: %v", err)
+		_ = bus.Close()
+		return err 
 	}
 
 	logger.Info("Starting BMP280 reader...")
 	bme, err := bmxx80.NewI2C(bus, 0x76, &bmxx80.DefaultOpts)
 	if err != nil {
 		logger.Errorf("failed to initialize bme280: %v", err)
+		_ = bus.Close()
+		return err
 	}
 
 	logger.Info("Starting MCP9808 Temperature Sensor")
@@ -221,6 +232,8 @@ func (w *weatherstation) initSensors() {
 	rp := gpioreg.ByName("GPIO17")
 	if rp == nil {
 		logger.Error("Failed to find GPIO17")
+		_ = bus.Close()
+		return err
 	}
 
 	logger.Infof("%s: %s", rp, rp.Function())
@@ -234,19 +247,25 @@ func (w *weatherstation) initSensors() {
 	// 300ms.
 	rainpin, err := gpioutil.Debounce(rp, 3*time.Millisecond, 300*time.Millisecond, gpio.FallingEdge)
 	if err != nil {
-		log.Fatal(err)
+		logger.Errorf("Failed to set debounce [%v]", err)
+		_ = bus.Close()
+		return err
 	}
 
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName("GPIO27")
 	if windpin == nil {
 		logger.Error("Failed to find GPIO27")
+		_ = bus.Close()
+		return err
 	}
 
 	logger.Infof("%s: %s", windpin, windpin.Function())
 
 	if err = windpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
 		logger.Error(err)
+		_ = bus.Close()
+		return err
 	}
 
 	// windpin, err := gpioutil.Debounce(rp, 0, 10*time.Millisecond, gpio.FallingEdge)
@@ -259,14 +278,18 @@ func (w *weatherstation) initSensors() {
 	adc, err := ads1x15.NewADS1115(bus, &ads1x15.DefaultOpts)
 	if err != nil {
 		logger.Error(err)
+		_ = bus.Close()
+		return err 
 	}
 
 	// Obtain an analog pin from the ADC.
 	dirPin, err := adc.PinForChannel(ads1x15.Channel0, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logger.Error(err)
+		_ = bus.Close()
+		return err
 	}
-	defer dirPin.Halt() //nolint
+	defer func() {_ = dirPin.Halt();}() 
 
 	w.s.bme = bme
 	w.s.hiResT = tempSensor
@@ -278,4 +301,5 @@ func (w *weatherstation) initSensors() {
 	w.s.windDir = &dirPin
 	w.windhist = make([]time.Time, 300)
 	w.pHist = 0
+	return nil
 }
