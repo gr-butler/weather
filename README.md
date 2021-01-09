@@ -2,7 +2,7 @@
 
 Raspberry Pi weather station
 
-A simple weather station based on a raspberry pi. It used a BME280 sensor for pressure, temp and humidity and some generic weather station parts for the rain guage, wind speed and wind direction sensors.
+A simple weather station based on a raspberry pi. It used a BME280 sensor for pressure and humidity and some generic weather station parts for the rain guage, wind speed and wind direction sensors. I'm using a MCP9808 for temp as I found the BMEwas off by 0.5C
 
 It's written in go which is each to cross compile for the pi.
 
