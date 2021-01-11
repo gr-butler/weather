@@ -71,34 +71,31 @@ func (s *weatherstation) readWindData() {
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
-	lasttick := time.Now().Add(time.Duration(-1) * time.Second)
 	var edge time.Time
 	for {
+		// need to clear out any pulses that maybe queued
+		var crud bool
+		for {
+			// loop and WaitForEdge with very small timeout to clear out any queue
+			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
+			// if we hit timeout crud = false, then we exit
+			if !crud {
+				break
+			}
+		}
+		startTime := time.Now()
 		(*w.s.windpin).WaitForEdge(-1)
 		edge = time.Now()
-		period := edge.Sub(lasttick).Seconds()
+		period := edge.Sub(startTime).Seconds()
 		if period != 0 {
 			freq := float64(1 / period)
 			speed := freq * mphPerTick
 			livespeed = speed
 			//logger.Infof(">>>>> Wind pulse p[%.4f] f[%.4f] s[%2.2f]", period, freq, speed)
-			lasttick = edge
 			pcount++
 			wsum += livespeed
 			if livespeed > wmax {
 				wmax = livespeed
-			}
-		}
-		// need to clear out any pulses that have arrived since
-		// almost certain to be junk unless we're in a hurracane on jupiter
-		var crud bool
-		for {
-			// wait for edge with small timeout
-			// "Returns true if an edge was detected during or before this call"
-			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
-			// if we hit timeout crud = false, then we exit
-			if !crud {
-				break
 			}
 		}
 	}
@@ -118,7 +115,7 @@ func (w *weatherstation) recordWindSpeed() {
 		windspeed.Set(avg)
 		windgust.Set(wmax)
 		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
-		//TODO need two sets - one for the prometeus live reporting and one for the 
+		//TODO need two sets - one for the prometeus live reporting and one for the
 		// 10 min met office report
 		// if t.Minute()%10 == 0 && t.Second() == 0 {
 		// 	logger.Infof("Reporting: Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
