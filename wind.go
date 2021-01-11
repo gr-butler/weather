@@ -33,13 +33,15 @@ threads: monitorWindGPIO and processWindSpeed.
 
 monitorWindGPIO sits in a forever loop and waits for the GPIO pin to be triggered. On each
 tick it calculates the instantanious wind speed based on the time since the last tick was
-recorded.
+recorded. The instant speed is summed and the number of readings is counted. At the same time
+the maximum value is calculated. The WaitForEdge library will queue events and fall though
+immediately if there has been a pulse since the last one. Since we are suseptable to switch
+bounce and noise, we can get spurious pulses. We deal with that by clearing out the queue at
+the start of each loop.
 
-The second thread processWindSpeed has a ticker that fires every 250ms. On each tick it records
-instantanious wind speed. It then clear the value - if it didn't we would not know if the wind
-stopped! If we have collected 4 values then we calculate the max and average of those values.
-The max gives us the value for the wind gust and the avg for that second is recorded in another
-array. When we have accumulated 60 values we work out the average wind speed for the last minute.
+The second thread processWindSpeed has a ticker that fires every minutes. On each tick it the
+wind average is calculated since the last read. The sum and count variables are reset and the
+avg and max values recorded.
 
 Values for windspeed, gust and direction are stored in local variable for the local web server
 and in the prometeus guages for further processing.
@@ -51,7 +53,6 @@ const (
 )
 
 var (
-	livespeed float64 = 0
 	pcount            = 0
 	wsum              = 0.0
 	wmax              = 0.0
@@ -71,7 +72,6 @@ func (s *weatherstation) readWindData() {
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
-	var edge time.Time
 	for {
 		// need to clear out any pulses that maybe queued
 		var crud bool
@@ -83,19 +83,17 @@ func (w *weatherstation) monitorWindGPIO() {
 				break
 			}
 		}
+		// worst case we're just over a microsecond after the last genuine pulse
 		startTime := time.Now()
 		(*w.s.windpin).WaitForEdge(-1)
-		edge = time.Now()
-		period := edge.Sub(startTime).Seconds()
+		period := time.Since(startTime).Seconds()
 		if period != 0 {
 			freq := float64(1 / period)
 			speed := freq * mphPerTick
-			livespeed = speed
-			//logger.Infof(">>>>> Wind pulse p[%.4f] f[%.4f] s[%2.2f]", period, freq, speed)
 			pcount++
-			wsum += livespeed
-			if livespeed > wmax {
-				wmax = livespeed
+			wsum += speed
+			if speed > wmax {
+				wmax = speed
 			}
 		}
 	}
@@ -103,28 +101,20 @@ func (w *weatherstation) monitorWindGPIO() {
 
 func (w *weatherstation) recordWindSpeed() {
 	avg := 0.0
-	// initial values
-	windspeed.Set(livespeed)
-	windgust.Set(livespeed)
 	// start ticker
 	for range time.Tick(time.Minute) {
-		avg = 0.0
 		if pcount > 0 {
 			avg = wsum / float64(pcount)
 		}
 		windspeed.Set(avg)
 		windgust.Set(wmax)
 		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
-		//TODO need two sets - one for the prometeus live reporting and one for the
-		// 10 min met office report
-		// if t.Minute()%10 == 0 && t.Second() == 0 {
-		// 	logger.Infof("Reporting: Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
 		w.windSpeedAvg = avg
 		w.windGust = wmax
 		wmax = 0.0
 		wsum = 0.0
 		pcount = 0
-		// }
+		avg = 0.0
 	}
 }
 
