@@ -69,6 +69,7 @@ func (s *weatherstation) readWindData() {
 // monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
 // WaitForEdge returns immediately IF another pulse has arrived since the last call.
 // need to make sure any queue is cleared before we restart the loop
+// ASSUMPTION: the loop is significantly faster than the incoming pulse rate
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
@@ -83,11 +84,13 @@ func (w *weatherstation) monitorWindGPIO() {
 				break
 			}
 		}
-		// worst case we're just over a microsecond after the last genuine pulse
+		// wait for the next (hopefully) genuine pulse
+		(*w.s.windpin).WaitForEdge(-1)
+		// start timer...
 		startTime := time.Now()
 		(*w.s.windpin).WaitForEdge(-1)
 		period := time.Since(startTime).Seconds()
-		if period != 0 {
+		if period > 0.01 { // TODO fudge - still getting stupid values (latest 2422MPH)
 			freq := float64(1 / period)
 			speed := freq * mphPerTick
 			pcount++
@@ -95,6 +98,8 @@ func (w *weatherstation) monitorWindGPIO() {
 			if speed > wmax {
 				wmax = speed
 			}
+		} else { 
+			logger.Warnf("IGNORNING: Period [%.4f] Speed [%v]", period, (mphPerTick / period))
 		}
 	}
 }
@@ -110,7 +115,7 @@ func (w *weatherstation) recordWindSpeed() {
 		windgust.Set(wmax)
 		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
 		w.windSpeedAvg = avg
-		w.windGust = wmax
+		w.windGust = wmax //TODO gust needs to be a 3s long pulse of wind
 		wmax = 0.0
 		wsum = 0.0
 		pcount = 0
