@@ -36,6 +36,7 @@ type sensors struct {
 type weatherstation struct {
 	s             *sensors
 	btips         []float64
+	rainTotals    []float64
 	count         float64   // GPIO bucket tip counter
 	lastTip       time.Time // Last bucket tip
 	pressure      float64
@@ -50,8 +51,8 @@ type weatherstation struct {
 	windVolts     float64
 	windhist      []time.Time
 	pHist         int
-	tGood         bool  // true if temp readings are good
-	aGood         bool  // true if the atmostperic readings are good
+	tGood         bool // true if temp readings are good
+	aGood         bool // true if the atmostperic readings are good
 }
 
 type webdata struct {
@@ -88,6 +89,13 @@ var rainRatePerHour = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "rain_hour_rate",
 		Help: "The rain rate based on the last 5 minuntes",
+	},
+)
+
+var rainDayTotal = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "rain_day",
+		Help: "The rain total today (9.01am - 9am)",
 	},
 )
 
@@ -136,7 +144,16 @@ var windDirection = prometheus.NewGauge(
 // called by prometheus
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
-	prometheus.MustRegister(atmPresure, mmRainPerHour, rh, temperature, altTemp, rainRatePerHour, windspeed, windgust, windDirection)
+	prometheus.MustRegister(atmPresure,
+		mmRainPerHour,
+		rh,
+		temperature, 
+		altTemp, 
+		rainRatePerHour, 
+		windspeed, 
+		windgust, 
+		windDirection, 
+		rainDayTotal)
 }
 
 func main() {
@@ -215,7 +232,7 @@ func (w *weatherstation) initSensors() error {
 	if err != nil {
 		logger.Errorf("failed to open MCP9808 sensor: %v", err)
 		_ = bus.Close()
-		return err 
+		return err
 	}
 
 	logger.Info("Starting BMP280 reader...")
@@ -279,7 +296,7 @@ func (w *weatherstation) initSensors() error {
 	if err != nil {
 		logger.Error(err)
 		_ = bus.Close()
-		return err 
+		return err
 	}
 
 	// Obtain an analog pin from the ADC.
@@ -289,11 +306,12 @@ func (w *weatherstation) initSensors() error {
 		_ = bus.Close()
 		return err
 	}
-	defer func() {_ = dirPin.Halt();}() 
+	defer func() { _ = dirPin.Halt() }()
 
 	w.s.bme = bme
 	w.s.hiResT = tempSensor
 	w.btips = make([]float64, 60)
+	w.rainTotals = make([]float64,24)
 	w.count = 0
 	w.s.bus = &bus
 	w.s.rainpin = &rainpin

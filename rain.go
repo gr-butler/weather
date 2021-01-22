@@ -31,6 +31,10 @@ func (w *weatherstation) readRainData() {
 	go w.monitorRainGPIO()
 	for x := range time.Tick(time.Minute) {
 		min := x.Minute()
+		// store day total (mm)
+		w.rainTotals[x.Hour()] += w.count * mmPerBucket
+		
+		rainDayTotal.Set(w.getLast24HRain())
 		// store the bucket tip count for the last minute
 		w.btips[min] = w.count
 		// reset the bucket tip counter
@@ -40,7 +44,8 @@ func (w *weatherstation) readRainData() {
 		rate := w.getHourlyRate(min)
 		mmRainPerHour.Set(mmhr)
 		rainRatePerHour.Set(rate)
-		logger.Infof("Rain mm total hr [%v], Rain rate [%v]", mmhr, rate)
+		logger.Infof("Rain mm 24h [%.2f] total hr [%.2f], Rain rate [%.2f]", w.getLast24HRain(), mmhr, rate)
+		
 	}
 }
 
@@ -52,20 +57,16 @@ func (w *weatherstation) getMMLastHour() float64 {
 	return math.Round(float64(total)*mmPerBucket*100) / 100
 }
 
+func (w *weatherstation) getLast24HRain() float64 {
+	total := 0.0
+	for _, x := range w.rainTotals {
+		total += x
+	}
+	return math.Round(float64(total)*100) / 100
+}
+
 // work out the rate per hour assuming it continues as it has in the last x minutes
 func (w *weatherstation) getHourlyRate(minute int) float64 {
-	// offset := minute
-	// index := 0
-	// count := w.count // the current minute
-	// for i := 1; i < hourRateMin; i++ {
-	// 	index = offset - i
-	// 	if index < 0 {
-	// 		offset = len(w.btips) + i - 1
-	// 		index = offset - i
-	// 	}
-	// 	count += w.btips[index]
-	// }
-
 	count := SumLastRange(minute, hourRateMin, float64(w.count), &w.btips)
 
 	hourMultiplier := float64(60 / hourRateMin)

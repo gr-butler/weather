@@ -62,17 +62,25 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 
 const reportFreqMin = 10
 const tipToInch = 0.011
+const mmToInch = 25.4
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 // MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
-	for min := range time.Tick(time.Minute) {
-		if min.Minute()%reportFreqMin == 0 {
+	for t := range time.Tick(time.Minute) {
+		if t.Minute()%reportFreqMin == 0 {
 			logger.Info("Sending data to met office")
-			data, err := w.prepData(min.Minute())
+			data, err := w.prepData(t.Minute())
 			if err != nil {
 				logger.Errorf("Failed to process data [%v]", err)
 				continue
+			}
+			if t.Hour() == 9 && t.Minute() == 0 {
+				// 9am - the odd time that the met office says is the end of one day and
+				// the start of the next one.
+				// send day rain total
+				// dailyrainin
+				data.Add("dailyrainin", fmt.Sprintf("%0.2f", w.getLast24HRain() / mmToInch))
 			}
 			logger.Infof("Data: [%v]", data.Encode())
 			// Metoffice accepts a GET... which is easier so wth
@@ -85,6 +93,7 @@ func (w *weatherstation) MetofficeProcessor() {
 				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 			}
 		}
+
 	}
 }
 

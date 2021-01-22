@@ -99,7 +99,7 @@ func (w *weatherstation) monitorWindGPIO() {
 				wmax = speed
 			}
 		} else { 
-			logger.Warnf("IGNORNING: Period [%.4f] Speed [%v]", period, (mphPerTick / period))
+			logger.Warnf("IGNORING: Period [%.6f] Speed [%v]", period, (mphPerTick / period))
 		}
 	}
 }
