@@ -29,10 +29,17 @@ func (w *weatherstation) monitorRainGPIO() {
 
 func (w *weatherstation) readRainData() {
 	go w.monitorRainGPIO()
+	lastHour := 0
 	for x := range time.Tick(time.Minute) {
 		min := x.Minute()
 		// store day total (mm)
-		w.rainTotals[x.Hour()] += w.count * mmPerBucket
+		if x.Hour() == lastHour {
+			w.rainTotals[x.Hour()] += w.count * mmPerBucket
+		} else {
+			// first time we write for this hour, reset the count
+			w.rainTotals[x.Hour()] = w.count * mmPerBucket
+			lastHour = x.Hour()
+		}
 		
 		rainDayTotal.Set(w.getLast24HRain())
 		// store the bucket tip count for the last minute
