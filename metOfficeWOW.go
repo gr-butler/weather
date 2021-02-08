@@ -67,6 +67,13 @@ const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 // MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
+	    /*
+    Safety net for 'too many open files' issue on legacy code.
+    Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
+    Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
+    */
+    http.DefaultClient.Timeout = time.Minute * 1
+	client := http.Client{ Timeout: time.Second * 2 }
 	for t := range time.Tick(time.Minute) {
 		if t.Minute()%reportFreqMin == 0 {
 			logger.Info("Sending data to met office")
@@ -75,20 +82,21 @@ func (w *weatherstation) MetofficeProcessor() {
 				logger.Errorf("Failed to process data [%v]", err)
 				continue
 			}
-			if t.Hour() == 9 && t.Minute() == 0 {
-				// 9am - the odd time that the met office says is the end of one day and
-				// the start of the next one.
-				// send day rain total
-				// dailyrainin
-				data.Add("dailyrainin", fmt.Sprintf("%0.2f", w.getLast24HRain() / mmToInch))
-			}
+			// if t.Hour() == 9 && t.Minute() == 0 {
+			// 	// 9am - the odd time that the met office says is the end of one day and
+			// 	// the start of the next one.
+			// 	// send day rain total
+			// 	// dailyrainin
+			// 	data.Add("dailyrainin", fmt.Sprintf("%0.2f", w.getLast24HRain() / mmToInch))
+			// }
 			logger.Infof("Data: [%v]", data.Encode())
 			// Metoffice accepts a GET... which is easier so wth
-			resp, err := http.Get(baseUrl + data.Encode())
+			resp, err := client.Get(baseUrl + data.Encode())
 			if err != nil {
 				logger.Errorf("Failed to POST data [%v]", err)
 				continue
 			}
+			defer resp.Body.Close()
 			if resp.StatusCode != 200 {
 				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 			}
