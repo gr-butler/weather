@@ -31,17 +31,7 @@ that equates to 1.429 MPH. This will need to be confirmed and calibrated at some
 When the readWindData function is called from main as a go routine, it starts two other
 threads: monitorWindGPIO and processWindSpeed.
 
-monitorWindGPIO sits in a forever loop and waits for the GPIO pin to be triggered. On each
-tick it calculates the instantanious wind speed based on the time since the last tick was
-recorded. The instant speed is summed and the number of readings is counted. At the same time
-the maximum value is calculated. The WaitForEdge library will queue events and fall though
-immediately if there has been a pulse since the last one. Since we are suseptable to switch
-bounce and noise, we can get spurious pulses. We deal with that by clearing out the queue at
-the start of each loop.
-
-The second thread processWindSpeed has a ticker that fires every minutes. On each tick it the
-wind average is calculated since the last read. The sum and count variables are reset and the
-avg and max values recorded.
+monitorWindGPIO sits in a forever loop and waits for the GPIO pin to be triggered.
 
 Values for windspeed, gust and direction are stored in local variable for the local web server
 and in the prometeus guages for further processing.
@@ -72,8 +62,6 @@ func (s *weatherstation) readWindData() {
 
 // monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
 // WaitForEdge returns immediately IF another pulse has arrived since the last call.
-// need to make sure any queue is cleared before we restart the loop
-// ASSUMPTION: the loop is significantly faster than the incoming pulse rate
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
@@ -82,40 +70,6 @@ func (w *weatherstation) monitorWindGPIO() {
 		pcount++
 	}
 }
-
-// func (w *weatherstation) monitorWindGPIO() {
-// 	logger.Info("Starting wind sensor")
-// 	defer func() { _ = (*w.s.windpin).Halt() }()
-// 	for {
-// 		// need to clear out any pulses that maybe queued
-// 		var crud bool
-// 		for {
-// 			// loop and WaitForEdge with very small timeout to clear out any queue
-// 			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
-// 			// if we hit timeout crud = false, then we exit
-// 			if !crud {
-// 				break
-// 			}
-// 		}
-// 		// wait for the next (hopefully) genuine pulse
-// 		(*w.s.windpin).WaitForEdge(-1)
-// 		// start timer...
-// 		startTime := time.Now()
-// 		(*w.s.windpin).WaitForEdge(-1)
-// 		period := time.Since(startTime).Seconds()
-// 		if period > 0.01 { // TODO fudge - still getting stupid values (latest 2422MPH)
-// 			freq := float64(1 / period)
-// 			speed := freq * mphPerTick
-// 			pcount++
-// 			wsum += speed
-// 			if speed > gust {
-// 				gust = speed
-// 			}
-// 		} else {
-// 			logger.Warnf("IGNORING: Period [%.6f] Speed [%v]", period, (mphPerTick / period))
-// 		}
-// 	}
-// }
 
 func (w *weatherstation) calculateWindSpeed() {
 	// start ticker
