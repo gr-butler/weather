@@ -23,7 +23,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-0.1.7"
+const version = "GRB-Weather-0.2.1"
 
 type sensors struct {
 	bme     *bmxx80.Dev
@@ -147,12 +147,12 @@ func init() {
 	prometheus.MustRegister(atmPresure,
 		mmRainPerHour,
 		rh,
-		temperature, 
-		altTemp, 
-		rainRatePerHour, 
-		windspeed, 
-		windgust, 
-		windDirection, 
+		temperature,
+		altTemp,
+		rainRatePerHour,
+		windspeed,
+		windgust,
+		windDirection,
 		rainDayTotal)
 }
 
@@ -311,7 +311,7 @@ func (w *weatherstation) initSensors() error {
 	w.s.bme = bme
 	w.s.hiResT = tempSensor
 	w.btips = make([]float64, 60)
-	w.rainTotals = make([]float64,24)
+	w.rainTotals = make([]float64, 24)
 	w.count = 0
 	w.s.bus = &bus
 	w.s.rainpin = &rainpin

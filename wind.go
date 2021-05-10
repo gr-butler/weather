@@ -53,16 +53,20 @@ const (
 )
 
 var (
-	pcount            = 0
-	wsum              = 0.0
-	wmax              = 0.0
+	pcount = 0.0
+	count  = 1
+	wsum   = 0.0
+	gust   = 0.0
+	speed  = 0.0
+	avg    = 0.0
+	sum    = 0.0
 )
 
 func (s *weatherstation) readWindData() {
 	go s.monitorWindGPIO()
-	go s.recordWindSpeed()
+	go s.calculateWindSpeed()
 	for range time.Tick(time.Second * 30) {
-		s.readWindDirection()
+		s.recordData()
 	}
 }
 
@@ -74,56 +78,61 @@ func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 	defer func() { _ = (*w.s.windpin).Halt() }()
 	for {
-		// need to clear out any pulses that maybe queued
-		var crud bool
-		for {
-			// loop and WaitForEdge with very small timeout to clear out any queue
-			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
-			// if we hit timeout crud = false, then we exit
-			if !crud {
-				break
-			}
-		}
-		// wait for the next (hopefully) genuine pulse
 		(*w.s.windpin).WaitForEdge(-1)
-		// start timer...
-		startTime := time.Now()
-		(*w.s.windpin).WaitForEdge(-1)
-		period := time.Since(startTime).Seconds()
-		if period > 0.01 { // TODO fudge - still getting stupid values (latest 2422MPH)
-			freq := float64(1 / period)
-			speed := freq * mphPerTick
-			pcount++
-			wsum += speed
-			if speed > wmax {
-				wmax = speed
-			}
-		} else { 
-			logger.Warnf("IGNORING: Period [%.6f] Speed [%v]", period, (mphPerTick / period))
-		}
+		pcount++
 	}
 }
 
-func (w *weatherstation) recordWindSpeed() {
-	avg := 0.0
+// func (w *weatherstation) monitorWindGPIO() {
+// 	logger.Info("Starting wind sensor")
+// 	defer func() { _ = (*w.s.windpin).Halt() }()
+// 	for {
+// 		// need to clear out any pulses that maybe queued
+// 		var crud bool
+// 		for {
+// 			// loop and WaitForEdge with very small timeout to clear out any queue
+// 			crud = (*w.s.windpin).WaitForEdge(time.Microsecond)
+// 			// if we hit timeout crud = false, then we exit
+// 			if !crud {
+// 				break
+// 			}
+// 		}
+// 		// wait for the next (hopefully) genuine pulse
+// 		(*w.s.windpin).WaitForEdge(-1)
+// 		// start timer...
+// 		startTime := time.Now()
+// 		(*w.s.windpin).WaitForEdge(-1)
+// 		period := time.Since(startTime).Seconds()
+// 		if period > 0.01 { // TODO fudge - still getting stupid values (latest 2422MPH)
+// 			freq := float64(1 / period)
+// 			speed := freq * mphPerTick
+// 			pcount++
+// 			wsum += speed
+// 			if speed > gust {
+// 				gust = speed
+// 			}
+// 		} else {
+// 			logger.Warnf("IGNORING: Period [%.6f] Speed [%v]", period, (mphPerTick / period))
+// 		}
+// 	}
+// }
+
+func (w *weatherstation) calculateWindSpeed() {
 	// start ticker
-	for range time.Tick(time.Minute) {
-		if pcount > 0 {
-			avg = wsum / float64(pcount)
+
+	for range time.Tick(time.Second * 3) {
+		speed = (mphPerTick * pcount) / 3
+		if speed > gust {
+			gust = speed
 		}
-		windspeed.Set(avg)
-		windgust.Set(wmax)
-		logger.Infof("Wind Avg [%.2f] Gust [%.2f]", avg, wmax)
-		w.windSpeedAvg = avg
-		w.windGust = wmax //TODO gust needs to be a 3s long pulse of wind
-		wmax = 0.0
-		wsum = 0.0
+		sum += speed
+		avg = sum / float64(count)
+		count++
 		pcount = 0
-		avg = 0.0
 	}
 }
 
-func (w *weatherstation) readWindDirection() {
+func (w *weatherstation) recordData() {
 	sample, err := (*w.s.windDir).Read()
 	if err != nil {
 		logger.Errorf("Error reading wind direction value [%v]", err)
@@ -134,8 +143,17 @@ func (w *weatherstation) readWindDirection() {
 	logger.Debugf("Volt [%v], Dir [%v]", w.windVolts, w.windDirection)
 
 	// prometheus data
-	logger.Debugf("Setting winddir [%v]", w.s.windDir)
 	windDirection.Set(w.windDirection)
+	windspeed.Set(avg)
+	windgust.Set(gust)
+	logger.Infof("Wind Avg [%.2f] Gust [%.2f] Winddir [%v]", avg, gust, w.windDirection)
+	w.windSpeedAvg = avg
+	w.windGust = gust
+	gust = 0.0
+	avg = 0.0
+	count = 1.0
+	sum = 0.0
+
 }
 
 func voltToDegrees(v float64) float64 {
