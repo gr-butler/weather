@@ -23,7 +23,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-0.2.1"
+const version = "GRB-Weather-0.2.2"
 
 type sensors struct {
 	bme     *bmxx80.Dev

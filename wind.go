@@ -93,8 +93,10 @@ func (w *weatherstation) recordData() {
 		sample.Raw = 0
 	}
 	w.windVolts = float64(sample.V) / float64(physic.Volt)
-	w.windDirection = voltToDegrees(w.windVolts)
-	logger.Debugf("Volt [%v], Dir [%v]", w.windVolts, w.windDirection)
+	// lock direction if not enough wind for sensor
+	if avg > 0.5 {
+		w.windDirection = voltToDegrees(w.windVolts)
+	}
 
 	// prometheus data
 	windDirection.Set(w.windDirection)
