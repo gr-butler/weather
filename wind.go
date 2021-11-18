@@ -16,6 +16,8 @@ of gusts, or short-lived peaks in speed, which inflict greatest damage in
 storms. The gust speed and direction are defined by the maximum three second
 average wind speed occurring in any period.
 
+The gust speed and direction are defined by the maximum three second average wind speed occurring in any period.
+
 A better measure of the overall wind intensity is defined by the average speed
 and direction over the ten minute period leading up to the reporting time.
 Mean wind over other averaging periods may also be calculated. A gale is
@@ -28,13 +30,7 @@ How do we measure the wind.
 The anemometer I use generates 1 pulse per revolution and the specifications states
 that equates to 1.429 MPH. This will need to be confirmed and calibrated at some time.
 
-When the readWindData function is called from main as a go routine, it starts two other
-threads: monitorWindGPIO and processWindSpeed.
 
-monitorWindGPIO sits in a forever loop and waits for the GPIO pin to be triggered.
-
-Values for windspeed, gust and direction are stored in local variable for the local web server
-and in the prometeus guages for further processing.
 */
 
 const (
