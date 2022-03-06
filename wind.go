@@ -95,7 +95,9 @@ func (w *weatherstation) recordData() {
 	}
 
 	// prometheus data
-	windDirection.Set(w.windDirection)
+	if avg > 2 { // a magic number for now
+		windDirection.Set(w.windDirection)
+	}
 	windspeed.Set(avg)
 	windgust.Set(gust)
 	logger.Infof("Wind Avg [%.2f] Gust [%.2f] Winddir [%v]", avg, gust, w.windDirection)
