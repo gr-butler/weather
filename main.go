@@ -155,8 +155,10 @@ func main() {
 
 	// start go routines
 	go w.MonitorAtmospheric()
+
 	go w.readRainData()
 	go w.readWindData()
+
 	go w.MetofficeProcessor()
 
 	// start web service

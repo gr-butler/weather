@@ -14,7 +14,7 @@ import (
 
 const Rd = 287.1
 const g = 9.807  // gravity
-const z0 = 24.71 // River aAD is 16.61, river height at 4.1m is level with the road and I'm 3m above that
+const z0 = 24.71 // River aOD is 16.61, river height at 4.1m is level with the road and I'm 3m above that
 const kelvin = 273.1
 
 /*
@@ -67,13 +67,13 @@ const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 // MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
-	    /*
-    Safety net for 'too many open files' issue on legacy code.
-    Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
-    Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
-    */
-    http.DefaultClient.Timeout = time.Minute * 1
-	client := http.Client{ Timeout: time.Second * 2 }
+	/*
+	   Safety net for 'too many open files' issue on legacy code.
+	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
+	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
+	*/
+	http.DefaultClient.Timeout = time.Minute * 1
+	client := http.Client{Timeout: time.Second * 2}
 	for t := range time.Tick(time.Minute) {
 		if t.Minute()%reportFreqMin == 0 {
 			logger.Info("Sending data to met office")

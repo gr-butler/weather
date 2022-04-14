@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/pointer2null/weather/utils"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
 )
 
 const (
@@ -13,46 +13,11 @@ const (
 	hourRateMin int     = 10 // number of minutes to average for hourly rate
 )
 
-func (w *weatherstation) monitorRainGPIO() {
-	logger.Info("Starting tip bucket")
-	defer func() { _ = (*w.s.GPIO.Rainpin).Halt() }()
-	for {
-		(*w.s.GPIO.Rainpin).WaitForEdge(-1)
-		if (*w.s.GPIO.Rainpin).Read() == gpio.Low {
-			w.count++
-			w.lastTip = time.Now()
-			logger.Infof("Bucket tip. [%v]", w.count)
-		}
-		time.Sleep(time.Second)
-	}
-}
-
 func (w *weatherstation) readRainData() {
-	go w.monitorRainGPIO()
-	lastHour := 0
 	for x := range time.Tick(time.Minute) {
 		min := x.Minute()
-		// store day total (mm)
-		if x.Hour() == lastHour {
-			w.rainTotals[x.Hour()] += w.count * mmPerBucket
-		} else {
-			// first time we write for this hour, reset the count
-			w.rainTotals[x.Hour()] = w.count * mmPerBucket
-			lastHour = x.Hour()
-		}
 
-		rainDayTotal.Set(w.getLast24HRain())
-		// store the bucket tip count for the last minute
-		w.btips[min] = w.count
-		// reset the bucket tip counter
-		w.count = 0
-
-		mmhr := w.getMMLastHour()
-		rate := w.getHourlyRate(min)
-		mmRainPerHour.Set(mmhr)
-		rainRatePerHour.Set(rate)
 		logger.Infof("Rain mm 24h [%.2f] total hr [%.2f], Rain rate [%.2f]", w.getLast24HRain(), mmhr, rate)
-
 	}
 }
 
@@ -79,4 +44,25 @@ func (w *weatherstation) getHourlyRate(minute int) float64 {
 	hourMultiplier := float64(60 / hourRateMin)
 
 	return (float64(count) * mmPerBucket * hourMultiplier)
+}
+
+func (w *weatherstation) setupRainBuffers() {
+
+	rainSecondBuffer := utils.NewBuffer(60)
+	rainAvgMinuteBuffer := utils.NewBuffer(60)
+	rainSecondBuffer.SetAutoAverage(rainAvgMinuteBuffer)
+	rainAvgHourBuffer := utils.NewBuffer(24)
+	rainAvgMinuteBuffer.SetAutoAverage(rainAvgHourBuffer)
+
+	rainMinMinuteBuffer := utils.NewBuffer(60)
+	rainSecondBuffer.SetAutoMinimum(rainMinMinuteBuffer)
+	rainMinHourBuffer := utils.NewBuffer(24)
+	rainMinMinuteBuffer.SetAutoMinimum(rainMinHourBuffer)
+
+	rainMaxMinuteBuffer := utils.NewBuffer(60)
+	rainSecondBuffer.SetAutoMaximum(rainMaxMinuteBuffer)
+	rainMaxHourBuffer := utils.NewBuffer(24)
+	rainMaxMinuteBuffer.SetAutoMaximum(rainMaxHourBuffer)
+
+	w.data.AddBuffer("rain", rainSecondBuffer)
 }

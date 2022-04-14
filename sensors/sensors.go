@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"math"
+	"sync"
 	"time"
 
 	logger "github.com/sirupsen/logrus"
@@ -39,8 +40,14 @@ type Sensors struct {
 }
 
 type GPIO struct {
-	Rainpin *gpio.PinIO // Rain bucket tip pin
-	Windpin *gpio.PinIO // Wind speed pulse
+	Rainpin  *gpio.PinIO // Rain bucket tip pin
+	Windpin  *gpio.PinIO // Wind speed pulse
+	counters *counters
+}
+
+type counters struct {
+	rainTip  int
+	rainLock sync.Mutex
 }
 
 type IIC struct {
@@ -94,14 +101,9 @@ func (s *Sensors) InitSensors() error {
 
 	logger.Infof("%s: %s", rp, rp.Function())
 
-	// if err = rainpin.In(gpio.PullUp, gpio.BothEdges); err != nil {
-	// 	log.Fatal(err)
-	// }
-
 	// Set up debounced pin
-	// Ignore glitches lasting less than 30ms, and ignore repeated edges within
-	// 500ms.
-	rainpin, err := gpioutil.Debounce(rp, 30*time.Millisecond, 500*time.Millisecond, gpio.FallingEdge)
+	// Ignore glitches lasting less than 100ms, and ignore repeated edges within 500ms.
+	rainpin, err := gpioutil.Debounce(rp, 100*time.Millisecond, 500*time.Millisecond, gpio.FallingEdge)
 	if err != nil {
 		logger.Errorf("Failed to set debounce [%v]", err)
 		_ = bus.Close()
@@ -148,15 +150,39 @@ func (s *Sensors) InitSensors() error {
 	s.GPIO.Rainpin = &rainpin
 	s.GPIO.Windpin = &windpin
 	s.IIC.WindDir = &dirPin
+	s.GPIO.counters = &counters{rainTip: 0}
+
+	// start rain bucket monitor
+	// this will be replaced when we move to the IIC weather head module
+	go s.monitorRainGPIO()
 	return nil
+}
+
+func (s *Sensors) monitorRainGPIO() {
+	logger.Info("Starting tip bucket monitor")
+	defer func() { _ = (*s.GPIO.Rainpin).Halt() }()
+	for {
+		(*s.GPIO.Rainpin).WaitForEdge(-1)
+		if (*s.GPIO.Rainpin).Read() == gpio.Low {
+			s.GPIO.counters.rainLock.Lock()
+			defer s.GPIO.counters.rainLock.Unlock()
+			s.GPIO.counters.rainTip += 1
+			logger.Infof("Bucket tip. [%v] @ %v", s.GPIO.counters.rainTip, time.Now().Format(time.ANSIC))
+		}
+	}
 }
 
 func (s *Sensors) GetWindCount() int {
 	return 0
 }
 
+// Return the number of tip events since last read
 func (s *Sensors) GetRainCount() int {
-	return 0
+	s.GPIO.counters.rainLock.Lock()
+	defer s.GPIO.counters.rainLock.Unlock()
+	count := s.GPIO.counters.rainTip
+	s.GPIO.counters.rainTip = 0
+	return count
 }
 
 func (s *Sensors) GetHumidityAndPressure() (PressurehPa, RelHumidity, error) {

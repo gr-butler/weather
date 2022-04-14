@@ -86,6 +86,18 @@ func (b *SampleBuffer) AddValueToCurrentItem(val float64) {
 func (b *SampleBuffer) GetAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
+	return b.getAverageMinMaxSum()
+}
+
+func (b *SampleBuffer) SumLast(numberOdItems int) Sum {
+	return 0.0
+}
+
+func (b *SampleBuffer) AverageLast(numberOdItems int) Average {
+	return 0.0
+}
+
+func (b *SampleBuffer) getAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	min := math.MaxFloat64
 	max := 0.0
 	sum := 0.0
