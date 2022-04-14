@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/pointer2null/weather/utils"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/physic"
 )
@@ -60,9 +61,9 @@ func (s *weatherstation) readWindData() {
 // WaitForEdge returns immediately IF another pulse has arrived since the last call.
 func (w *weatherstation) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	defer func() { _ = (*w.s.windpin).Halt() }()
+	defer func() { _ = (*w.s.GPIO.Windpin).Halt() }()
 	for {
-		(*w.s.windpin).WaitForEdge(-1)
+		(*w.s.GPIO.Windpin).WaitForEdge(-1)
 		pcount++
 	}
 }
@@ -83,7 +84,7 @@ func (w *weatherstation) calculateWindSpeed() {
 }
 
 func (w *weatherstation) recordData() {
-	sample, err := (*w.s.windDir).Read()
+	sample, err := (*w.s.IIC.WindDir).Read()
 	if err != nil {
 		logger.Errorf("Error reading wind direction value [%v]", err)
 		sample.Raw = 0
@@ -147,4 +148,25 @@ func voltToDegrees(v float64) float64 {
 	default:
 		return 270.0
 	}
+}
+
+func (w *weatherstation) SetupWindSpeedBuffers() {
+
+	windSpeedSecondBuffer := utils.NewBuffer(60)
+	windSpeedAvgMinuteBuffer := utils.NewBuffer(60)
+	windSpeedSecondBuffer.SetAutoAverage(windSpeedAvgMinuteBuffer)
+	windSpeedAvgHourBuffer := utils.NewBuffer(24)
+	windSpeedAvgMinuteBuffer.SetAutoAverage(windSpeedAvgHourBuffer)
+
+	windSpeedMinMinuteBuffer := utils.NewBuffer(60)
+	windSpeedSecondBuffer.SetAutoMinimum(windSpeedMinMinuteBuffer)
+	windSpeedMinHourBuffer := utils.NewBuffer(24)
+	windSpeedMinMinuteBuffer.SetAutoMinimum(windSpeedMinHourBuffer)
+
+	windSpeedMaxMinuteBuffer := utils.NewBuffer(60)
+	windSpeedSecondBuffer.SetAutoMaximum(windSpeedMaxMinuteBuffer)
+	windSpeedMaxHourBuffer := utils.NewBuffer(24)
+	windSpeedMaxMinuteBuffer.SetAutoMaximum(windSpeedMaxHourBuffer)
+
+	w.data.AddBuffer("windSpeed", windSpeedSecondBuffer)
 }

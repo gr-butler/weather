@@ -15,10 +15,10 @@ const (
 
 func (w *weatherstation) monitorRainGPIO() {
 	logger.Info("Starting tip bucket")
-	defer func() { _ = (*w.s.rainpin).Halt() }()
+	defer func() { _ = (*w.s.GPIO.Rainpin).Halt() }()
 	for {
-		(*w.s.rainpin).WaitForEdge(-1)
-		if (*w.s.rainpin).Read() == gpio.Low {
+		(*w.s.GPIO.Rainpin).WaitForEdge(-1)
+		if (*w.s.GPIO.Rainpin).Read() == gpio.Low {
 			w.count++
 			w.lastTip = time.Now()
 			logger.Infof("Bucket tip. [%v]", w.count)
@@ -40,7 +40,7 @@ func (w *weatherstation) readRainData() {
 			w.rainTotals[x.Hour()] = w.count * mmPerBucket
 			lastHour = x.Hour()
 		}
-		
+
 		rainDayTotal.Set(w.getLast24HRain())
 		// store the bucket tip count for the last minute
 		w.btips[min] = w.count
@@ -52,7 +52,7 @@ func (w *weatherstation) readRainData() {
 		mmRainPerHour.Set(mmhr)
 		rainRatePerHour.Set(rate)
 		logger.Infof("Rain mm 24h [%.2f] total hr [%.2f], Rain rate [%.2f]", w.getLast24HRain(), mmhr, rate)
-		
+
 	}
 }
 

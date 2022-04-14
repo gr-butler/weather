@@ -1,3 +1,25 @@
 package data
 
+import "github.com/pointer2null/weather/utils"
+
 // holder and processor for all the data being produced but the sensors
+
+type WeatherData struct {
+	buffers map[string]*utils.SampleBuffer
+}
+
+func CreateWeatherData() *WeatherData {
+	wd := WeatherData{}
+
+	wd.buffers = make(map[string]*utils.SampleBuffer)
+
+	return &wd
+}
+
+func (wd *WeatherData) AddBuffer(name string, b *utils.SampleBuffer) {
+	wd.buffers[name] = b
+}
+
+func (wd *WeatherData) GetBuffer(name string) *utils.SampleBuffer {
+	return wd.buffers[name]
+}
