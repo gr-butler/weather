@@ -16,12 +16,9 @@ import (
 const version = "GRB-Weather-0.3.0"
 
 type weatherstation struct {
-	s             *sensors.Sensors
-	data          *data.WeatherData
-	btips         []float64
-	rainTotals    []float64
-	count         float64   // GPIO bucket tip counter
-	lastTip       time.Time // Last bucket tip
+	s    *sensors.Sensors
+	data *data.WeatherData
+
 	pressure      float64
 	pressureInHg  float64
 	humidity      float64
@@ -61,21 +58,21 @@ var atmPresure = prometheus.NewGauge(
 	},
 )
 
-var mmRainPerHour = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: "mm_rain_last_hour",
-		Help: "mm of Rain in the last hour",
-	},
-)
+// var Prom_mmRainPerHour = prometheus.NewGauge(
+// 	prometheus.GaugeOpts{
+// 		Name: "mm_rain_last_hour",
+// 		Help: "mm of Rain in the last hour",
+// 	},
+// )
 
-var rainRatePerHour = prometheus.NewGauge(
+var Prom_rainRatePerHour = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "rain_hour_rate",
 		Help: "The rain rate based on the last 5 minuntes",
 	},
 )
 
-var rainDayTotal = prometheus.NewGauge(
+var Prom_rainDayTotal = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "rain_day",
 		Help: "The rain total today (9.01am - 9am)",
@@ -128,15 +125,15 @@ var windDirection = prometheus.NewGauge(
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
 	prometheus.MustRegister(atmPresure,
-		mmRainPerHour,
+		// Prom_mmRainPerHour,
 		rh,
 		temperature,
 		altTemp,
-		rainRatePerHour,
+		Prom_rainRatePerHour,
 		windspeed,
 		windgust,
 		windDirection,
-		rainDayTotal)
+		Prom_rainDayTotal)
 }
 
 func main() {
@@ -172,14 +169,14 @@ func main() {
 func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	wd := webdata{
-		Temp:         s.temp,
-		TempHiRes:    s.hiResTemp,
-		Humidity:     s.humidity,
-		Pressure:     s.pressure,
-		PressureHg:   s.pressureInHg,
-		RainHr:       s.getMMLastHour(),
-		RainRate:     s.getHourlyRate(time.Now().Minute()),
-		LastTip:      s.lastTip.Format(time.RFC822),
+		Temp:       s.temp,
+		TempHiRes:  s.hiResTemp,
+		Humidity:   s.humidity,
+		Pressure:   s.pressure,
+		PressureHg: s.pressureInHg,
+		// RainHr:     s.getMMLastHour(),
+		//		RainRate:     s.getHourlyRate(time.Now().Minute()),
+		//LastTip:      s.lastTip.Format(time.RFC822),
 		TimeNow:      time.Now().Format(time.RFC822),
 		WindDir:      s.windDirection,
 		WindVolts:    s.windVolts,

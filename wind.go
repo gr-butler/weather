@@ -50,7 +50,7 @@ var (
 )
 
 func (s *weatherstation) readWindData() {
-	go s.monitorWindGPIO()
+	//go s.monitorWindGPIO()
 	go s.calculateWindSpeed()
 	for range time.Tick(time.Second * 30) {
 		s.recordData()
@@ -59,14 +59,6 @@ func (s *weatherstation) readWindData() {
 
 // monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
 // WaitForEdge returns immediately IF another pulse has arrived since the last call.
-func (w *weatherstation) monitorWindGPIO() {
-	logger.Info("Starting wind sensor")
-	defer func() { _ = (*w.s.GPIO.Windpin).Halt() }()
-	for {
-		(*w.s.GPIO.Windpin).WaitForEdge(-1)
-		pcount++
-	}
-}
 
 func (w *weatherstation) calculateWindSpeed() {
 	// start ticker

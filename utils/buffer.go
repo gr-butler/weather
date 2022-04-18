@@ -11,6 +11,7 @@ type Maximum float64
 type Sum float64
 
 type SampleBuffer struct {
+	name        string
 	position    int
 	size        int
 	data        []float64
@@ -48,6 +49,22 @@ func (b *SampleBuffer) SetAutoMaximum(buf *SampleBuffer) {
 
 func (b *SampleBuffer) SetAutoSum(buf *SampleBuffer) {
 	b.autoSum = buf
+}
+
+func (b *SampleBuffer) GetAutoAverage() *SampleBuffer {
+	return b.autoAverage
+}
+
+func (b *SampleBuffer) GetAutoMinimum() *SampleBuffer {
+	return b.autoMin
+}
+
+func (b *SampleBuffer) GetAutoMaximum() *SampleBuffer {
+	return b.autoMax
+}
+
+func (b *SampleBuffer) GetAutoSum() *SampleBuffer {
+	return b.autoSum
 }
 
 func (b *SampleBuffer) AddItem(val float64) {
@@ -89,12 +106,37 @@ func (b *SampleBuffer) GetAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	return b.getAverageMinMaxSum()
 }
 
-func (b *SampleBuffer) SumLast(numberOdItems int) Sum {
-	return 0.0
+func (b *SampleBuffer) SumLast(numberOfItems int) Sum {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	index := b.position - numberOfItems
+	sum := 0.0
+	for numberOfItems > 0 {
+		sum += b.data[index]
+		index += 1
+		if index == b.size {
+			index = 0
+		}
+		numberOfItems -= 1
+	}
+	return Sum(sum)
 }
 
-func (b *SampleBuffer) AverageLast(numberOdItems int) Average {
-	return 0.0
+func (b *SampleBuffer) AverageLast(numberOfItems int) Average {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	index := b.position - numberOfItems
+	items := numberOfItems
+	sum := 0.0
+	for numberOfItems > 0 {
+		sum += b.data[index]
+		index += 1
+		if index == b.size {
+			index = 0
+		}
+		numberOfItems -= 1
+	}
+	return Average(sum / float64(items))
 }
 
 func (b *SampleBuffer) getAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {

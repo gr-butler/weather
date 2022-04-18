@@ -40,13 +40,21 @@ type Sensors struct {
 }
 
 type GPIO struct {
-	Rainpin  *gpio.PinIO // Rain bucket tip pin
-	Windpin  *gpio.PinIO // Wind speed pulse
-	counters *counters
+	windsensor *windsensor
+	rainsensor *rainsensor
 }
 
-type counters struct {
+type windsensor struct {
+	windpin    *gpio.PinIO // Wind speed pulse
+	pulseCount int
+	lastRead   int64
+	windLock   sync.Mutex
+}
+
+type rainsensor struct {
+	rainpin  *gpio.PinIO // Rain bucket tip pin
 	rainTip  int
+	lastRead int64
 	rainLock sync.Mutex
 }
 
@@ -147,42 +155,66 @@ func (s *Sensors) InitSensors() error {
 	s.IIC.Atm = bme
 	s.IIC.Temp = tempSensor
 	s.IIC.Bus = &bus
-	s.GPIO.Rainpin = &rainpin
-	s.GPIO.Windpin = &windpin
+	s.GPIO.rainsensor.rainpin = &rainpin
+	s.GPIO.windsensor.windpin = &windpin
 	s.IIC.WindDir = &dirPin
-	s.GPIO.counters = &counters{rainTip: 0}
+	s.GPIO.rainsensor = &rainsensor{rainTip: 0}
 
 	// start rain bucket monitor
 	// this will be replaced when we move to the IIC weather head module
 	go s.monitorRainGPIO()
+	go s.monitorWindGPIO()
 	return nil
 }
 
 func (s *Sensors) monitorRainGPIO() {
 	logger.Info("Starting tip bucket monitor")
-	defer func() { _ = (*s.GPIO.Rainpin).Halt() }()
+	defer func() { _ = (*s.GPIO.rainsensor.rainpin).Halt() }()
 	for {
-		(*s.GPIO.Rainpin).WaitForEdge(-1)
-		if (*s.GPIO.Rainpin).Read() == gpio.Low {
-			s.GPIO.counters.rainLock.Lock()
-			defer s.GPIO.counters.rainLock.Unlock()
-			s.GPIO.counters.rainTip += 1
-			logger.Infof("Bucket tip. [%v] @ %v", s.GPIO.counters.rainTip, time.Now().Format(time.ANSIC))
-		}
+		func() {
+			(*s.GPIO.rainsensor.rainpin).WaitForEdge(-1)
+			if (*s.GPIO.rainsensor.rainpin).Read() == gpio.Low {
+				s.GPIO.rainsensor.rainLock.Lock()
+				defer s.GPIO.rainsensor.rainLock.Unlock()
+				s.GPIO.rainsensor.rainTip += 1
+				logger.Infof("Bucket tip. [%v] @ %v", s.GPIO.rainsensor.rainTip, time.Now().Format(time.ANSIC))
+			}
+		}()
 	}
 }
 
-func (s *Sensors) GetWindCount() int {
-	return 0
+func (s *Sensors) monitorWindGPIO() {
+	logger.Info("Starting wind sensor")
+	defer func() { _ = (*s.GPIO.windsensor.windpin).Halt() }()
+	for {
+		func() {
+			s.GPIO.windsensor.windLock.Lock()
+			defer s.GPIO.windsensor.windLock.Unlock()
+			(*s.GPIO.windsensor.windpin).WaitForEdge(-1)
+			s.GPIO.windsensor.pulseCount += 1
+		}()
+	}
+}
+
+func (s *Sensors) GetWindCount() (int, int64) {
+	s.GPIO.windsensor.windLock.Lock()
+	defer s.GPIO.windsensor.windLock.Unlock()
+	lastRead := s.GPIO.windsensor.lastRead
+	s.GPIO.windsensor.lastRead = time.Now().UnixMilli()
+	count := s.GPIO.windsensor.pulseCount
+	s.GPIO.windsensor.pulseCount = 0
+	return count, lastRead
 }
 
 // Return the number of tip events since last read
-func (s *Sensors) GetRainCount() int {
-	s.GPIO.counters.rainLock.Lock()
-	defer s.GPIO.counters.rainLock.Unlock()
-	count := s.GPIO.counters.rainTip
-	s.GPIO.counters.rainTip = 0
-	return count
+func (s *Sensors) GetRainCount() (int, int64) {
+	s.GPIO.rainsensor.rainLock.Lock()
+	defer s.GPIO.rainsensor.rainLock.Unlock()
+	lastRead := s.GPIO.rainsensor.lastRead
+	s.GPIO.rainsensor.lastRead = time.Now().UnixMilli()
+	count := s.GPIO.rainsensor.rainTip
+	s.GPIO.rainsensor.rainTip = 0
+	return count, lastRead
 }
 
 func (s *Sensors) GetHumidityAndPressure() (PressurehPa, RelHumidity, error) {
