@@ -9,6 +9,8 @@ type Average float64
 type Minimum float64
 type Maximum float64
 type Sum float64
+type Size int
+type Position int
 
 type SampleBuffer struct {
 	name        string
@@ -106,20 +108,29 @@ func (b *SampleBuffer) GetAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	return b.getAverageMinMaxSum()
 }
 
-func (b *SampleBuffer) SumLast(numberOfItems int) Sum {
+func (b *SampleBuffer) SumMinMaxLast(numberOfItems int) (Sum, Minimum, Maximum) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	index := b.position - numberOfItems
+	min := math.MaxFloat64
+	max := 0.0
 	sum := 0.0
 	for numberOfItems > 0 {
-		sum += b.data[index]
+		x := b.data[index]
+		sum += x
+		if x > max {
+			max = x
+		}
+		if x < min {
+			min = x
+		}
 		index += 1
 		if index == b.size {
 			index = 0
 		}
 		numberOfItems -= 1
 	}
-	return Sum(sum)
+	return Sum(sum), Minimum(min), Maximum(max)
 }
 
 func (b *SampleBuffer) AverageLast(numberOfItems int) Average {
@@ -155,4 +166,11 @@ func (b *SampleBuffer) getAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	}
 
 	return Average((sum / float64(b.size))), Minimum(min), Maximum(max), Sum(sum)
+}
+
+func (b *SampleBuffer) GetRawData() ([]float64, Size, Position) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	copy := b.data
+	return copy, Size(b.size), Position(b.position)
 }

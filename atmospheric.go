@@ -7,7 +7,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-func (w *weatherstation) MonitorAtmospheric() {
+func (w *weatherstation) StartAtmosphericMonitor() {
 	logger.Info("Starting atmosphere monitors")
 	// set the the required buffers
 	w.setupTemperatureBuffers()

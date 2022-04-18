@@ -13,7 +13,7 @@ const (
 	millisToSec    int64   = 1000
 )
 
-func (w *weatherstation) startRainMonitor() {
+func (w *weatherstation) StartRainMonitor() {
 	w.setupRainBuffers()
 	go w.readRainData()
 }
@@ -30,8 +30,8 @@ func (w *weatherstation) readRainData() {
 
 		// Does this belong here? Or should this file just be about recording the data?
 		mmLastMinute := float64(count) * mmPerBucketTip
-
-		tenMinSum_mm := rbuff.SumLast(hourRateMins) * utils.Sum(mmLastMinute)
+		sum, _, _ := rbuff.SumMinMaxLast(hourRateMins)
+		tenMinSum_mm := sum * utils.Sum(mmLastMinute)
 		hourRate_mm := (float64(tenMinSum_mm) * 60) / float64(hourRateMins)
 
 		Prom_rainRatePerHour.Set(hourRate_mm)

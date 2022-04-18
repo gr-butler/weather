@@ -4,8 +4,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/utils"
-	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/physic"
+	//logger "github.com/sirupsen/logrus"
 )
 
 /*
@@ -40,67 +39,45 @@ const (
 )
 
 var (
-	pcount = 0.0
-	count  = 1
-	wsum   = 0.0
-	gust   = 0.0
-	speed  = 0.0
-	avg    = 0.0
-	sum    = 0.0
+	rawSpeed     *utils.SampleBuffer
+	rawDirection *utils.SampleBuffer
 )
 
-func (s *weatherstation) readWindData() {
-	//go s.monitorWindGPIO()
-	go s.calculateWindSpeed()
-	for range time.Tick(time.Second * 30) {
-		s.recordData()
+func (w *weatherstation) StartWindMonitor() {
+	w.setupWindSpeedBuffers()
+	rawSpeed = utils.NewBuffer(60)
+	// once per second record the wind speed (ticks)
+	go w.recordWindSpeedData()
+}
+
+func (w *weatherstation) recordWindSpeedData() {
+	for range time.Tick(time.Second) {
+		count, _ := w.s.GetWindCount()
+		rawSpeed.AddItem(float64(count))
+		w.calculateWindSpeeds()
 	}
 }
 
-// monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
-// WaitForEdge returns immediately IF another pulse has arrived since the last call.
-
-func (w *weatherstation) calculateWindSpeed() {
-	// start ticker
-
-	for range time.Tick(time.Second * 3) {
-		speed = (mphPerTick * pcount) / 3
-		if speed > gust {
-			gust = speed
-		}
-		sum += speed
-		avg = sum / float64(count)
-		count++
-		pcount = 0
-	}
+// calculate average and gust
+func (w *weatherstation) calculateWindSpeeds() {
+	// sample the last 3 seconds and calculate the Speed and Gust values
+	var numSeconds = 3
+	sumraw, gustraw, _ := rawSpeed.SumMinMaxLast(numSeconds)
+	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
+	w.data.GetBuffer("windSpeed").AddItem(speed)
+	gust := (mphPerTick * float64(gustraw)) / float64(numSeconds)
+	w.data.GetBuffer("windGust").AddItem(gust)
 }
 
-func (w *weatherstation) recordData() {
-	sample, err := (*w.s.IIC.WindDir).Read()
-	if err != nil {
-		logger.Errorf("Error reading wind direction value [%v]", err)
-		sample.Raw = 0
-	}
-	w.windVolts = float64(sample.V) / float64(physic.Volt)
-	// lock direction if not enough wind for sensor
-	if avg > 0.5 {
-		w.windDirection = voltToDegrees(w.windVolts)
-	}
+func (w *weatherstation) setupWindSpeedBuffers() {
 
-	// prometheus data
-	if avg > 2 { // a magic number for now
-		windDirection.Set(w.windDirection)
-	}
-	windspeed.Set(avg)
-	windgust.Set(gust)
-	logger.Infof("Wind Avg [%.2f] Gust [%.2f] Winddir [%v]", avg, gust, w.windDirection)
-	w.windSpeedAvg = avg
-	w.windGust = gust
-	gust = 0.0
-	avg = 0.0
-	count = 1.0
-	sum = 0.0
+	windSpeedBuffer := utils.NewBuffer(60)
+	windSpeedGustBuffer := utils.NewBuffer(60)
+	windSpeedDirectionBuffer := utils.NewBuffer(60)
 
+	w.data.AddBuffer("windSpeed", windSpeedBuffer)
+	w.data.AddBuffer("windGust", windSpeedGustBuffer)
+	w.data.AddBuffer("windDirection", windSpeedDirectionBuffer)
 }
 
 func voltToDegrees(v float64) float64 {
@@ -142,23 +119,68 @@ func voltToDegrees(v float64) float64 {
 	}
 }
 
-func (w *weatherstation) SetupWindSpeedBuffers() {
+// ------------ old shite
 
-	windSpeedSecondBuffer := utils.NewBuffer(60)
-	windSpeedAvgMinuteBuffer := utils.NewBuffer(60)
-	windSpeedSecondBuffer.SetAutoAverage(windSpeedAvgMinuteBuffer)
-	windSpeedAvgHourBuffer := utils.NewBuffer(24)
-	windSpeedAvgMinuteBuffer.SetAutoAverage(windSpeedAvgHourBuffer)
+// var (
+// 	pcount = 0.0
+// 	count  = 1
+// 	wsum   = 0.0
+// 	gust   = 0.0
+// 	speed  = 0.0
+// 	avg    = 0.0
+// 	sum    = 0.0
+// )
 
-	windSpeedMinMinuteBuffer := utils.NewBuffer(60)
-	windSpeedSecondBuffer.SetAutoMinimum(windSpeedMinMinuteBuffer)
-	windSpeedMinHourBuffer := utils.NewBuffer(24)
-	windSpeedMinMinuteBuffer.SetAutoMinimum(windSpeedMinHourBuffer)
+// func (s *weatherstation) readWindData() {
+// 	//go s.monitorWindGPIO()
+// 	go s.calculateWindSpeed()
+// 	for range time.Tick(time.Second * 30) {
+// 		s.recordData()
+// 	}
+// }
 
-	windSpeedMaxMinuteBuffer := utils.NewBuffer(60)
-	windSpeedSecondBuffer.SetAutoMaximum(windSpeedMaxMinuteBuffer)
-	windSpeedMaxHourBuffer := utils.NewBuffer(24)
-	windSpeedMaxMinuteBuffer.SetAutoMaximum(windSpeedMaxHourBuffer)
+// // monitorWindGPIO watches the gpio port on tick calculate the instantanious wind speed.
+// // WaitForEdge returns immediately IF another pulse has arrived since the last call.
 
-	w.data.AddBuffer("windSpeed", windSpeedSecondBuffer)
-}
+// func (w *weatherstation) calculateWindSpeed() {
+// 	// start ticker
+
+// 	for range time.Tick(time.Second * 3) {
+// 		speed = (mphPerTick * pcount) / 3
+// 		if speed > gust {
+// 			gust = speed
+// 		}
+// 		sum += speed
+// 		avg = sum / float64(count)
+// 		count++
+// 		pcount = 0
+// 	}
+// }
+
+// func (w *weatherstation) recordData() {
+// 	sample, err := (*w.s.IIC.WindDir).Read()
+// 	if err != nil {
+// 		logger.Errorf("Error reading wind direction value [%v]", err)
+// 		sample.Raw = 0
+// 	}
+// 	w.windVolts = float64(sample.V) / float64(physic.Volt)
+// 	// lock direction if not enough wind for sensor
+// 	if avg > 0.5 {
+// 		w.windDirection = voltToDegrees(w.windVolts)
+// 	}
+
+// 	// prometheus data
+// 	if avg > 2 { // a magic number for now
+// 		windDirection.Set(w.windDirection)
+// 	}
+// 	windspeed.Set(avg)
+// 	windgust.Set(gust)
+// 	logger.Infof("Wind Avg [%.2f] Gust [%.2f] Winddir [%v]", avg, gust, w.windDirection)
+// 	w.windSpeedAvg = avg
+// 	w.windGust = gust
+// 	gust = 0.0
+// 	avg = 0.0
+// 	count = 1.0
+// 	sum = 0.0
+
+// }

@@ -151,10 +151,9 @@ func main() {
 	w.data = data.CreateWeatherData()
 
 	// start go routines
-	go w.MonitorAtmospheric()
-
-	go w.readRainData()
-	go w.readWindData()
+	go w.StartAtmosphericMonitor()
+	go w.StartRainMonitor()
+	go w.StartWindMonitor()
 
 	go w.MetofficeProcessor()
 
