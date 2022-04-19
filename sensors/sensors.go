@@ -217,6 +217,16 @@ func (s *Sensors) GetRainCount() (int, int64) {
 	return count, lastRead
 }
 
+func (s *Sensors) GetWindDirection() float64 {
+	sample, err := (*s.IIC.WindDir).Read()
+	if err != nil {
+		logger.Errorf("Error reading wind direction value [%v]", err)
+		sample.Raw = 0
+	}
+
+	return voltToDegrees(float64(sample.V) / float64(physic.Volt))
+}
+
 func (s *Sensors) GetHumidityAndPressure() (PressurehPa, RelHumidity, error) {
 	em := physic.Env{}
 	if s.IIC.Atm != nil {
@@ -243,4 +253,43 @@ func (s *Sensors) GetTemperature() (TemperatureC, error) {
 		return TemperatureC(hiT.Temperature.Celsius()), nil
 	}
 	return 0, errors.New("Temperature sensor offline")
+}
+
+func voltToDegrees(v float64) float64 {
+	// this is based on the sensor datasheet that gives a list of voltages for each direction when set up according
+	// to the circuit given. Have noticed the output isn't that accurate relative to the sensor direction...
+	switch {
+	case v < 0.365:
+		return 112.5
+	case v < 0.430:
+		return 67.5
+	case v < 0.535:
+		return 90.0
+	case v < 0.760:
+		return 157.5
+	case v < 1.045:
+		return 135.0
+	case v < 1.295:
+		return 202.5
+	case v < 1.690:
+		return 180.0
+	case v < 2.115:
+		return 22.5
+	case v < 2.590:
+		return 45.0
+	case v < 3.005:
+		return 247.5
+	case v < 3.225:
+		return 225.0
+	case v < 3.635:
+		return 337.5
+	case v < 3.940:
+		return 0
+	case v < 4.185:
+		return 292.5
+	case v < 4.475:
+		return 315.0
+	default:
+		return 270.0
+	}
 }
