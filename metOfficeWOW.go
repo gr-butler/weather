@@ -137,6 +137,7 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	windDirection := 0.0
 	windSpeed := 0.0
 	windGust := 0.0
+	rainDayInch := 0.0
 
 	// data
 	/*
@@ -173,5 +174,6 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	wowData.Add("winddir", fmt.Sprintf("%0.2f", windDirection))
 	wowData.Add("windspeedmph", fmt.Sprintf("%f", windSpeed))
 	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
+	wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
 	return wowData, nil
 }
