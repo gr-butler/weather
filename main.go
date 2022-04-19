@@ -18,21 +18,6 @@ const version = "GRB-Weather-0.3.0"
 type weatherstation struct {
 	s    *sensors.Sensors
 	data *data.WeatherData
-
-	pressure      float64
-	pressureInHg  float64
-	humidity      float64
-	temp          float64
-	tempf         float64
-	hiResTemp     float64
-	windGust      float64
-	windSpeedAvg  float64
-	windDirection float64
-	windVolts     float64
-	windhist      []time.Time
-	pHist         int
-	tGood         bool // true if temp readings are good
-	aGood         bool // true if the atmostperic readings are good
 }
 
 type webdata struct {
@@ -51,7 +36,7 @@ type webdata struct {
 	WindSpeedAvg float64 `json:"wind_speed_avg"`
 }
 
-var atmPresure = prometheus.NewGauge(
+var Prom_atmPresure = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "atmospheric_pressure",
 		Help: "Atmospheric pressure hPa",
@@ -79,44 +64,44 @@ var Prom_rainDayTotal = prometheus.NewGauge(
 	},
 )
 
-var rh = prometheus.NewGauge(
+var Prom_humidity = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "relative_humidity",
 		Help: "Relative Humidity",
 	},
 )
 
-var temperature = prometheus.NewGauge(
+var Prom_temperature = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "temperature",
 		Help: "Temperature C",
 	},
 )
 
-var altTemp = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: "altTemperature",
-		Help: "Temperature C",
-	},
-)
-
-var windspeed = prometheus.NewGauge(
+var Prom_windspeed = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "windspeed",
 		Help: "Average Wind Speed mph",
 	},
 )
 
-var windgust = prometheus.NewGauge(
+var Prom_windgust = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "windgust",
 		Help: "Instant wind speed mph",
 	},
 )
 
-var windDirection = prometheus.NewGauge(
+var Prom_windDirection = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "winddirection",
+		Help: "Wind Direction Deg",
+	},
+)
+
+var Prom_windMedian = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "windmedian",
 		Help: "Wind Direction Deg",
 	},
 )
@@ -124,16 +109,16 @@ var windDirection = prometheus.NewGauge(
 // called by prometheus
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
-	prometheus.MustRegister(atmPresure,
-		// Prom_mmRainPerHour,
-		rh,
-		temperature,
-		altTemp,
+	prometheus.MustRegister(
+		Prom_atmPresure,
+		Prom_humidity,
 		Prom_rainRatePerHour,
-		windspeed,
-		windgust,
-		windDirection,
-		Prom_rainDayTotal)
+		Prom_rainDayTotal,
+		Prom_temperature,
+		Prom_windspeed,
+		Prom_windgust,
+		Prom_windDirection,
+		Prom_windMedian)
 }
 
 func main() {
@@ -165,31 +150,30 @@ func main() {
 	logger.Fatal(http.ListenAndServe(":80", nil))
 }
 
-func (s *weatherstation) handler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	hum, pres := w.s.GetHumidityAndPressure()
 	wd := webdata{
-		Temp:       s.temp,
-		TempHiRes:  s.hiResTemp,
-		Humidity:   s.humidity,
-		Pressure:   s.pressure,
-		PressureHg: s.pressureInHg,
-		// RainHr:     s.getMMLastHour(),
-		//		RainRate:     s.getHourlyRate(time.Now().Minute()),
+		TempHiRes: float64(w.s.GetTemperature()),
+		Humidity:  float64(hum),
+		Pressure:  float64(pres),
+		//PressureHg: s.pressureInHg,
+		//RainHr:     s.getMMLastHour(),
+		//RainRate:     s.getHourlyRate(time.Now().Minute()),
 		//LastTip:      s.lastTip.Format(time.RFC822),
-		TimeNow:      time.Now().Format(time.RFC822),
-		WindDir:      s.windDirection,
-		WindVolts:    s.windVolts,
-		WindSpeed:    s.windGust,
-		WindSpeedAvg: s.windSpeedAvg,
+		TimeNow: time.Now().Format(time.RFC822),
+		WindDir: w.s.GetWindDirection(),
+		// WindSpeed:    ,
+		// WindSpeedAvg: s.windSpeedAvg,
 	}
 
 	js, err := json.Marshal(wd)
 	if err != nil {
 		logger.Errorf("JSON error [%v]", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	logger.Infof("Web read: \n[%v]", string(js))
-	_, _ = w.Write(js) // not much we can do if this fails
+	_, _ = rw.Write(js) // not much we can do if this fails
 }

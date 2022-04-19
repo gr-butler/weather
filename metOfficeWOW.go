@@ -59,10 +59,10 @@ windgustdir 	Current Wind Gust Direction (using software specific time period) 	
 windgustmph 	Current Wind Gust (using software specific time period) 			Miles per Hour
 
 */
-
-const reportFreqMin = 10
-const tipToInch = 0.011
+//PressureinHg = 29.92 * ( Pressurehpa / 1013.2) = 0.02953 * Pressurehpa
+const hPaToInHg = 0.02953
 const mmToInch = 25.4
+const reportFreqMin = 10
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 // MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
@@ -129,12 +129,21 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// system info
 	wowData.Add("softwaretype", version)
 
+	tempC := 0.0
+	pressureInHg := 0.0
+	humidity := 0.0
+	tempf := 0.0
+	rainInch := 0.0
+	windDirection := 0.0
+	windSpeed := 0.0
+	windGust := 0.0
+
 	// data
 	/*
 		3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
 	*/
 
-	tempK := w.hiResTemp + kelvin
+	tempK := tempC + kelvin
 
 	/*
 		4. Compute the scale height H = RdT/g, where Rd = 287.1 J/(kg K) and g = 9.807 m/s2.
@@ -150,26 +159,19 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 		made your pressure observation.
 	*/
 
-	mslp := w.pressureInHg * math.Exp(z0/H)
-	// we have had an incent where freezing fog took out the IIC bus and we lost sensors.
-	// this should prevent bad data being submitted
-	if w.aGood {
-		wowData.Add("baromin", fmt.Sprintf("%f", mslp))
-		wowData.Add("humidity", fmt.Sprintf("%0f", w.humidity))
-	}
-	if w.tGood {
-		wowData.Add("tempf", fmt.Sprintf("%0f", w.tempf))
-		//Td = T - ((100 - RH)/5.)
-		dewf := ((((w.hiResTemp + 273) - ((100 - (w.humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
-		wowData.Add("dewptf", fmt.Sprintf("%0f", dewf))
-	}
-	// rain inches since last reading
-	//tips := SumLastRange(min, reportFreqMin, w.count, &w.btips)
-	tips := 0.0 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-	// 1 tip = 0.2794mm = 0.011 inch
-	wowData.Add("rainin", fmt.Sprintf("%f", (tips*tipToInch)))
-	wowData.Add("winddir", fmt.Sprintf("%0.2f", w.windDirection))
-	wowData.Add("windspeedmph", fmt.Sprintf("%f", w.windSpeedAvg))
-	wowData.Add("windgustmph", fmt.Sprintf("%f", w.windGust))
+	mslp := pressureInHg * math.Exp(z0/H)
+
+	wowData.Add("baromin", fmt.Sprintf("%f", mslp))
+	wowData.Add("humidity", fmt.Sprintf("%0f", humidity))
+
+	wowData.Add("tempf", fmt.Sprintf("%0f", tempf))
+	//Td = T - ((100 - RH)/5.)
+	dewPoint_f := ((((tempC + 273) - ((100 - (humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
+	wowData.Add("dewptf", fmt.Sprintf("%0f", dewPoint_f))
+
+	wowData.Add("rainin", fmt.Sprintf("%f", rainInch))
+	wowData.Add("winddir", fmt.Sprintf("%0.2f", windDirection))
+	wowData.Add("windspeedmph", fmt.Sprintf("%f", windSpeed))
+	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
 	return wowData, nil
 }

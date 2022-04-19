@@ -1,7 +1,6 @@
 package sensors
 
 import (
-	"errors"
 	"flag"
 	"math"
 	"sync"
@@ -196,25 +195,23 @@ func (s *Sensors) monitorWindGPIO() {
 	}
 }
 
-func (s *Sensors) GetWindCount() (int, int64) {
+func (s *Sensors) GetWindCount() int {
 	s.GPIO.windsensor.windLock.Lock()
 	defer s.GPIO.windsensor.windLock.Unlock()
-	lastRead := s.GPIO.windsensor.lastRead
 	s.GPIO.windsensor.lastRead = time.Now().UnixMilli()
 	count := s.GPIO.windsensor.pulseCount
 	s.GPIO.windsensor.pulseCount = 0
-	return count, lastRead
+	return count
 }
 
 // Return the number of tip events since last read
-func (s *Sensors) GetRainCount() (int, int64) {
+func (s *Sensors) GetRainCount() int {
 	s.GPIO.rainsensor.rainLock.Lock()
 	defer s.GPIO.rainsensor.rainLock.Unlock()
-	lastRead := s.GPIO.rainsensor.lastRead
 	s.GPIO.rainsensor.lastRead = time.Now().UnixMilli()
 	count := s.GPIO.rainsensor.rainTip
 	s.GPIO.rainsensor.rainTip = 0
-	return count, lastRead
+	return count
 }
 
 func (s *Sensors) GetWindDirection() float64 {
@@ -227,32 +224,32 @@ func (s *Sensors) GetWindDirection() float64 {
 	return voltToDegrees(float64(sample.V) / float64(physic.Volt))
 }
 
-func (s *Sensors) GetHumidityAndPressure() (PressurehPa, RelHumidity, error) {
+func (s *Sensors) GetHumidityAndPressure() (PressurehPa, RelHumidity) {
 	em := physic.Env{}
 	if s.IIC.Atm != nil {
 		if err := s.IIC.Atm.Sense(&em); err != nil {
 			logger.Errorf("BME280 read failed [%v]", err)
-			return 0, 0, errors.New("Atmospheric sensor read failure")
+			return 0, 0
 		}
 		// convert raw sensor output
 		humidity := RelHumidity(math.Round(float64(em.Humidity) / float64(physic.PercentRH)))
 		pressure := PressurehPa(math.Round((float64(em.Pressure)/float64(100*physic.Pascal))*100) / 100)
 		//pressureInHg := PressureInHg((float64(em.Pressure) / (float64(physic.Pascal))) * paToInchHg)
-		return pressure, humidity, nil
+		return pressure, humidity
 	}
-	return 0, 0, errors.New("Atmospheric sensor offline")
+	return 0, 0
 }
 
-func (s *Sensors) GetTemperature() (TemperatureC, error) {
+func (s *Sensors) GetTemperature() TemperatureC {
 	hiT := physic.Env{}
 	if s.IIC.Temp != nil {
 		if err := s.IIC.Temp.Sense(&hiT); err != nil {
 			logger.Errorf("MCP9808 read failed [%v]", err)
-			return 0, errors.New("Temperature sensor read failure")
+			return 0
 		}
-		return TemperatureC(hiT.Temperature.Celsius()), nil
+		return TemperatureC(hiT.Temperature.Celsius())
 	}
-	return 0, errors.New("Temperature sensor offline")
+	return 0
 }
 
 func voltToDegrees(v float64) float64 {

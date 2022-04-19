@@ -15,85 +15,66 @@ func (w *weatherstation) StartAtmosphericMonitor() {
 	w.SetupPressurehPaBuffers()
 
 	// sample and store sensor data
-	for range time.Tick(time.Second) {
-		t, err := w.s.GetTemperature()
-		if err != nil {
-			logger.Warn("No temp data at %v", time.Now().Format(time.ANSIC))
-			w.data.GetBuffer("temperature").AddItem(0.0)
-		} else {
-			w.data.GetBuffer("temperature").AddItem(float64(t))
-		}
-		hPa, rh, err := w.s.GetHumidityAndPressure()
-		if err != nil {
-			logger.Warn("No pressure and humidity data at %v", time.Now().Format(time.ANSIC))
-			w.data.GetBuffer("humidity").AddItem(0.0)
-			w.data.GetBuffer("pressurehPa").AddItem(0.0)
-		} else {
-			w.data.GetBuffer("humidity").AddItem(float64(rh))
-			w.data.GetBuffer("pressurehPa").AddItem(float64(hPa))
-		}
+	for range time.Tick(time.Minute) {
+		t := w.s.GetTemperature()
+
+		w.data.GetBuffer("temperature").AddItem(float64(t))
+		Prom_temperature.Set(float64(t))
+
+		hPa, rh := w.s.GetHumidityAndPressure()
+
+		w.data.GetBuffer("humidity").AddItem(float64(rh))
+		w.data.GetBuffer("pressurehPa").AddItem(float64(hPa))
+		Prom_atmPresure.Set(float64(hPa))
+		Prom_humidity.Set(float64(rh))
+
 	}
 }
 
 func (w *weatherstation) setupTemperatureBuffers() {
 
-	temperatureSecondBuffer := utils.NewBuffer(60)
-	tempAvgMinuteBuffer := utils.NewBuffer(60)
-	temperatureSecondBuffer.SetAutoAverage(tempAvgMinuteBuffer)
+	temperatureMinuteBuffer := utils.NewBuffer(60)
+
 	tempAvgHourBuffer := utils.NewBuffer(24)
-	tempAvgMinuteBuffer.SetAutoAverage(tempAvgHourBuffer)
+	temperatureMinuteBuffer.SetAutoAverage(tempAvgHourBuffer)
 
-	tempMinMinuteBuffer := utils.NewBuffer(60)
-	temperatureSecondBuffer.SetAutoMinimum(tempMinMinuteBuffer)
 	tempMinHourBuffer := utils.NewBuffer(24)
-	tempMinMinuteBuffer.SetAutoMinimum(tempMinHourBuffer)
+	temperatureMinuteBuffer.SetAutoMinimum(tempMinHourBuffer)
 
-	tempMaxMinuteBuffer := utils.NewBuffer(60)
-	temperatureSecondBuffer.SetAutoMaximum(tempMaxMinuteBuffer)
 	tempMaxHourBuffer := utils.NewBuffer(24)
-	tempMaxMinuteBuffer.SetAutoMaximum(tempMaxHourBuffer)
+	temperatureMinuteBuffer.SetAutoMaximum(tempMaxHourBuffer)
 
-	w.data.AddBuffer("temperature", temperatureSecondBuffer)
+	w.data.AddBuffer("temperature", temperatureMinuteBuffer)
 }
 
 func (w *weatherstation) setupHumidityBuffers() {
 
-	humiditySecondBuffer := utils.NewBuffer(60)
-	humidityAvgMinuteBuffer := utils.NewBuffer(60)
-	humiditySecondBuffer.SetAutoAverage(humidityAvgMinuteBuffer)
+	humidityMinuteBuffer := utils.NewBuffer(60)
+
 	humidityAvgHourBuffer := utils.NewBuffer(24)
-	humidityAvgMinuteBuffer.SetAutoAverage(humidityAvgHourBuffer)
+	humidityMinuteBuffer.SetAutoAverage(humidityAvgHourBuffer)
 
-	humidityMinMinuteBuffer := utils.NewBuffer(60)
-	humiditySecondBuffer.SetAutoMinimum(humidityMinMinuteBuffer)
 	humidityMinHourBuffer := utils.NewBuffer(24)
-	humidityMinMinuteBuffer.SetAutoMinimum(humidityMinHourBuffer)
+	humidityMinuteBuffer.SetAutoMinimum(humidityMinHourBuffer)
 
-	humidityMaxMinuteBuffer := utils.NewBuffer(60)
-	humiditySecondBuffer.SetAutoMaximum(humidityMaxMinuteBuffer)
 	humidityMaxHourBuffer := utils.NewBuffer(24)
-	humidityMaxMinuteBuffer.SetAutoMaximum(humidityMaxHourBuffer)
+	humidityMinuteBuffer.SetAutoMaximum(humidityMaxHourBuffer)
 
-	w.data.AddBuffer("humidity", humiditySecondBuffer)
+	w.data.AddBuffer("humidity", humidityMinuteBuffer)
 }
 
 func (w *weatherstation) SetupPressurehPaBuffers() {
 
-	pressurehPaSecondBuffer := utils.NewBuffer(60)
-	pressurehPaAvgMinuteBuffer := utils.NewBuffer(60)
-	pressurehPaSecondBuffer.SetAutoAverage(pressurehPaAvgMinuteBuffer)
+	pressurehPaMinuteBuffer := utils.NewBuffer(60)
+
 	pressurehPaAvgHourBuffer := utils.NewBuffer(24)
-	pressurehPaAvgMinuteBuffer.SetAutoAverage(pressurehPaAvgHourBuffer)
+	pressurehPaMinuteBuffer.SetAutoAverage(pressurehPaAvgHourBuffer)
 
-	pressurehPaMinMinuteBuffer := utils.NewBuffer(60)
-	pressurehPaSecondBuffer.SetAutoMinimum(pressurehPaMinMinuteBuffer)
 	pressurehPaMinHourBuffer := utils.NewBuffer(24)
-	pressurehPaMinMinuteBuffer.SetAutoMinimum(pressurehPaMinHourBuffer)
+	pressurehPaMinuteBuffer.SetAutoMinimum(pressurehPaMinHourBuffer)
 
-	pressurehPaMaxMinuteBuffer := utils.NewBuffer(60)
-	pressurehPaSecondBuffer.SetAutoMaximum(pressurehPaMaxMinuteBuffer)
 	pressurehPaMaxHourBuffer := utils.NewBuffer(24)
-	pressurehPaMaxMinuteBuffer.SetAutoMaximum(pressurehPaMaxHourBuffer)
+	pressurehPaMinuteBuffer.SetAutoMaximum(pressurehPaMaxHourBuffer)
 
-	w.data.AddBuffer("pressurehPa", pressurehPaSecondBuffer)
+	w.data.AddBuffer("pressurehPa", pressurehPaMinuteBuffer)
 }
