@@ -82,7 +82,7 @@ func (w *weatherstation) MetofficeProcessor() {
 				logger.Errorf("Failed to process data [%v]", err)
 				return
 			}
-			logger.Infof("Data: [%v]", data.Encode())
+			logger.Infof("Data: [%v]", data)
 			// Metoffice accepts a GET... which is easier so wtf
 			resp, err := client.Get(baseUrl + data.Encode())
 			if err != nil {

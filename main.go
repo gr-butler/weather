@@ -13,7 +13,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-0.3.0"
+const version = "GRB-Weather-1.0.0"
 
 type weatherstation struct {
 	s    *sensors.Sensors
@@ -42,13 +42,6 @@ var Prom_atmPresure = prometheus.NewGauge(
 		Help: "Atmospheric pressure hPa",
 	},
 )
-
-// var Prom_mmRainPerHour = prometheus.NewGauge(
-// 	prometheus.GaugeOpts{
-// 		Name: "mm_rain_last_hour",
-// 		Help: "mm of Rain in the last hour",
-// 	},
-// )
 
 var Prom_rainRatePerHour = prometheus.NewGauge(
 	prometheus.GaugeOpts{
@@ -99,13 +92,6 @@ var Prom_windDirection = prometheus.NewGauge(
 	},
 )
 
-var Prom_windMedian = prometheus.NewGauge(
-	prometheus.GaugeOpts{
-		Name: "windmedian",
-		Help: "Wind Direction Deg",
-	},
-)
-
 // called by prometheus
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
@@ -117,8 +103,7 @@ func init() {
 		Prom_temperature,
 		Prom_windspeed,
 		Prom_windgust,
-		Prom_windDirection,
-		Prom_windMedian)
+		Prom_windDirection)
 }
 
 func main() {

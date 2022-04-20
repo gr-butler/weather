@@ -40,7 +40,6 @@ const (
 	WindSpeedBuffer            = "windSpeed"
 	WindGustBuffer             = "windGust"
 	AverageWindDirectionBuffer = "windDirectionAvg"
-	MedianWindDirectionBuffer  = "windDirectionMedian"
 )
 
 var (
@@ -71,24 +70,20 @@ func (w *weatherstation) calculateValues() {
 	// sample the last 3 seconds and calculate the Speed and Gust values
 	var numSeconds = 3
 	sumraw, gustraw, _ := rawSpeed.SumMinMaxLast(numSeconds)
-	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
+	speed := mphPerTick * (float64(sumraw) / float64(numSeconds))
 	w.data.GetBuffer(WindSpeedBuffer).AddItem(speed)
-	gust := (mphPerTick * float64(gustraw)) / float64(numSeconds)
+	gust := mphPerTick * (float64(gustraw) / float64(numSeconds))
 	w.data.GetBuffer(WindGustBuffer).AddItem(gust)
 
 	// use bigger sample for wind direction - whole 60 second buffer
-	average, mx, mn, _ := rawDirection.GetAverageMinMaxSum()
-	diff := float64(mx) - float64(mn)
-	median := float64(mn) + (diff / 2)
+	average, _, _, _ := rawDirection.GetAverageMinMaxSum()
 	w.data.GetBuffer(AverageWindDirectionBuffer).AddItem(float64(average))
-	w.data.GetBuffer(MedianWindDirectionBuffer).AddItem(median)
 
-	logrus.Infof("Wind direction average [%3.2f], median [%3.2f], speed [%3.2f] gust [%3.2f]", average, median, speed, gust)
+	logrus.Infof("Wind direction average [%3.2f], speed [%3.2f] gust [%3.2f]", average, speed, gust)
 
 	Prom_windspeed.Set(speed)
 	Prom_windgust.Set(gust)
 	Prom_windDirection.Set(float64(average))
-	Prom_windMedian.Set(median)
 }
 
 func (w *weatherstation) setupWindSpeedBuffers() {
@@ -113,10 +108,8 @@ func (w *weatherstation) setupWindSpeedBuffers() {
 
 	// what do we need?
 	windAvgDirectionBuffer := utils.NewBuffer(60)
-	windMedianDirectionBuffer := utils.NewBuffer(60)
 
 	w.data.AddBuffer(WindSpeedBuffer, windSpeedBuffer)
 	w.data.AddBuffer(WindGustBuffer, windSpeedGustBuffer)
 	w.data.AddBuffer(AverageWindDirectionBuffer, windAvgDirectionBuffer)
-	w.data.AddBuffer(MedianWindDirectionBuffer, windMedianDirectionBuffer)
 }

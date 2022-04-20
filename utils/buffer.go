@@ -71,6 +71,10 @@ func (b *SampleBuffer) GetAutoSum() *SampleBuffer {
 func (b *SampleBuffer) AddItem(val float64) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
+	b.addItemNoLock(val)
+}
+
+func (b *SampleBuffer) addItemNoLock(val float64) {
 	b.data[b.position] = val
 	b.position += 1
 	if b.position == b.size {
@@ -80,18 +84,18 @@ func (b *SampleBuffer) AddItem(val float64) {
 }
 
 func (b *SampleBuffer) checkAutoFill() {
-	a, mn, mx, sm := b.GetAverageMinMaxSum()
+	a, mn, mx, sm := b.getAverageMinMaxSum()
 	if b.autoAverage != nil {
-		b.autoAverage.AddItem(float64(a))
+		b.autoAverage.addItemNoLock(float64(a))
 	}
 	if b.autoMin != nil {
-		b.autoMin.AddItem(float64(mn))
+		b.autoMin.addItemNoLock(float64(mn))
 	}
 	if b.autoMax != nil {
-		b.autoMax.AddItem(float64(mx))
+		b.autoMax.addItemNoLock(float64(mx))
 	}
 	if b.autoSum != nil {
-		b.autoSum.AddItem(float64(sm))
+		b.autoSum.addItemNoLock(float64(sm))
 	}
 }
 
