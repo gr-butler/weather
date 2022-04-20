@@ -51,6 +51,7 @@ var (
 func (w *weatherstation) StartWindMonitor() {
 	w.setupWindSpeedBuffers()
 	rawSpeed = utils.NewBuffer(60)
+	rawDirection = utils.NewBuffer(60)
 	// once per second record the wind speed (ticks)
 	go w.recordWindSpeedData()
 }
@@ -76,12 +77,13 @@ func (w *weatherstation) calculateValues() {
 	w.data.GetBuffer(WindGustBuffer).AddItem(gust)
 
 	// use bigger sample for wind direction - whole 60 second buffer
-	average, _, mn, mx := rawDirection.GetAverageMinMaxSum()
+	average, mx, mn, _ := rawDirection.GetAverageMinMaxSum()
 	diff := float64(mx) - float64(mn)
 	median := float64(mn) + (diff / 2)
-	logrus.Infof("Wind 3 second average [%v], median [%v]", average, median)
 	w.data.GetBuffer(AverageWindDirectionBuffer).AddItem(float64(average))
 	w.data.GetBuffer(MedianWindDirectionBuffer).AddItem(median)
+
+	logrus.Infof("Wind direction average [%3.2f], median [%3.2f], speed [%3.2f] gust [%3.2f]", average, median, speed, gust)
 
 	Prom_windspeed.Set(speed)
 	Prom_windgust.Set(gust)

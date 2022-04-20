@@ -33,7 +33,7 @@ func (w *weatherstation) StartAtmosphericMonitor() {
 		w.data.GetBuffer(PressureBuffer).AddItem(float64(hPa))
 		Prom_atmPresure.Set(float64(hPa))
 		Prom_humidity.Set(float64(rh))
-
+		logger.Infof("Temperature [%3.2f], Pressure [%3.2f], Humidity [%3.2f]", t, hPa, rh)
 	}
 }
 

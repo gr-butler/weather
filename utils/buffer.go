@@ -24,15 +24,15 @@ type SampleBuffer struct {
 }
 
 func NewBuffer(size int) *SampleBuffer {
-	b := SampleBuffer{
-		position:    0,
-		size:        size,
-		data:        make([]float64, size),
-		autoAverage: nil,
-		autoMin:     nil,
-		autoMax:     nil,
-		autoSum:     nil,
-	}
+	b := SampleBuffer{}
+
+	b.size = size
+	b.data = make([]float64, size)
+	b.autoAverage = nil
+	b.autoMin = nil
+	b.autoMax = nil
+	b.autoSum = nil
+
 	return &b
 }
 
@@ -111,6 +111,10 @@ func (b *SampleBuffer) SumMinMaxLast(numberOfItems int) (Sum, Minimum, Maximum) 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	index := b.position - numberOfItems
+	if index < 0 {
+		// we are at the start of the array, so need to reverse wrap
+		index += b.size
+	}
 	min := math.MaxFloat64
 	max := 0.0
 	sum := 0.0
@@ -136,6 +140,10 @@ func (b *SampleBuffer) AverageLast(numberOfItems int) Average {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	index := b.position - numberOfItems
+	if index < 0 {
+		// we are at the start of the array, so need to reverse wrap
+		index += b.size
+	}
 	items := numberOfItems
 	sum := 0.0
 	for numberOfItems > 0 {
