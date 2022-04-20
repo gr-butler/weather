@@ -65,6 +65,10 @@ type IIC struct {
 }
 
 func (s *Sensors) InitSensors() error {
+	s.GPIO = GPIO{}
+	s.GPIO.rainsensor = &rainsensor{}
+	s.GPIO.windsensor = &windsensor{}
+
 	if _, err := host.Init(); err != nil {
 		logger.Errorf("Failed to init i2c bus [%v]", err)
 		return err
@@ -157,7 +161,6 @@ func (s *Sensors) InitSensors() error {
 	s.GPIO.rainsensor.rainpin = &rainpin
 	s.GPIO.windsensor.windpin = &windpin
 	s.IIC.WindDir = &dirPin
-	s.GPIO.rainsensor = &rainsensor{rainTip: 0}
 
 	// start rain bucket monitor
 	// this will be replaced when we move to the IIC weather head module

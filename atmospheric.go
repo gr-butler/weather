@@ -7,6 +7,12 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
+const (
+	TempBuffer     = "temperature"
+	HumidityBuffer = "humidity"
+	PressureBuffer = "pressurehPa"
+)
+
 func (w *weatherstation) StartAtmosphericMonitor() {
 	logger.Info("Starting atmosphere monitors")
 	// set the the required buffers
@@ -18,13 +24,13 @@ func (w *weatherstation) StartAtmosphericMonitor() {
 	for range time.Tick(time.Minute) {
 		t := w.s.GetTemperature()
 
-		w.data.GetBuffer("temperature").AddItem(float64(t))
+		w.data.GetBuffer(TempBuffer).AddItem(float64(t))
 		Prom_temperature.Set(float64(t))
 
 		hPa, rh := w.s.GetHumidityAndPressure()
 
-		w.data.GetBuffer("humidity").AddItem(float64(rh))
-		w.data.GetBuffer("pressurehPa").AddItem(float64(hPa))
+		w.data.GetBuffer(HumidityBuffer).AddItem(float64(rh))
+		w.data.GetBuffer(PressureBuffer).AddItem(float64(hPa))
 		Prom_atmPresure.Set(float64(hPa))
 		Prom_humidity.Set(float64(rh))
 
@@ -44,7 +50,7 @@ func (w *weatherstation) setupTemperatureBuffers() {
 	tempMaxHourBuffer := utils.NewBuffer(24)
 	temperatureMinuteBuffer.SetAutoMaximum(tempMaxHourBuffer)
 
-	w.data.AddBuffer("temperature", temperatureMinuteBuffer)
+	w.data.AddBuffer(TempBuffer, temperatureMinuteBuffer)
 }
 
 func (w *weatherstation) setupHumidityBuffers() {
@@ -60,7 +66,7 @@ func (w *weatherstation) setupHumidityBuffers() {
 	humidityMaxHourBuffer := utils.NewBuffer(24)
 	humidityMinuteBuffer.SetAutoMaximum(humidityMaxHourBuffer)
 
-	w.data.AddBuffer("humidity", humidityMinuteBuffer)
+	w.data.AddBuffer(HumidityBuffer, humidityMinuteBuffer)
 }
 
 func (w *weatherstation) SetupPressurehPaBuffers() {
@@ -76,5 +82,5 @@ func (w *weatherstation) SetupPressurehPaBuffers() {
 	pressurehPaMaxHourBuffer := utils.NewBuffer(24)
 	pressurehPaMinuteBuffer.SetAutoMaximum(pressurehPaMaxHourBuffer)
 
-	w.data.AddBuffer("pressurehPa", pressurehPaMinuteBuffer)
+	w.data.AddBuffer(PressureBuffer, pressurehPaMinuteBuffer)
 }

@@ -13,7 +13,6 @@ type Size int
 type Position int
 
 type SampleBuffer struct {
-	name        string
 	position    int
 	size        int
 	data        []float64

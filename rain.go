@@ -10,7 +10,7 @@ import (
 const (
 	mmPerBucketTip float64 = 0.2794
 	hourRateMins   int     = 10 // number of minutes to average for hourly rate
-	millisToSec    int64   = 1000
+	RainBuffer             = "rain"
 )
 
 func (w *weatherstation) StartRainMonitor() {
@@ -25,7 +25,7 @@ func (w *weatherstation) readRainData() {
 		count := w.s.GetRainCount()
 
 		// add this to the rain minute buffer
-		rbuff := w.data.GetBuffer("rain")
+		rbuff := w.data.GetBuffer(RainBuffer)
 		rbuff.AddItem(float64(count))
 
 		// Does this belong here? Or should this file just be about recording the data?
@@ -57,5 +57,5 @@ func (w *weatherstation) setupRainBuffers() {
 	rainSumHourBuffer := utils.NewBuffer(24)
 	rainMinuteBuffer.SetAutoSum(rainSumHourBuffer)
 
-	w.data.AddBuffer("rain", rainMinuteBuffer)
+	w.data.AddBuffer(RainBuffer, rainMinuteBuffer)
 }

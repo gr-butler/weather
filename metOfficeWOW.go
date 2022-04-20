@@ -74,40 +74,31 @@ func (w *weatherstation) MetofficeProcessor() {
 	*/
 	http.DefaultClient.Timeout = time.Minute * 1
 	client := http.Client{Timeout: time.Second * 2}
-	for t := range time.Tick(time.Minute) {
-		if t.Minute()%reportFreqMin == 0 {
+	for t := range time.Tick(time.Minute * reportFreqMin) {
+		func() {
 			logger.Info("Sending data to met office")
 			data, err := w.prepData(t.Minute())
 			if err != nil {
 				logger.Errorf("Failed to process data [%v]", err)
-				continue
+				return
 			}
-			// if t.Hour() == 9 && t.Minute() == 0 {
-			// 	// 9am - the odd time that the met office says is the end of one day and
-			// 	// the start of the next one.
-			// 	// send day rain total
-			// 	// dailyrainin
-			// 	data.Add("dailyrainin", fmt.Sprintf("%0.2f", w.getLast24HRain() / mmToInch))
-			// }
 			logger.Infof("Data: [%v]", data.Encode())
-			// Metoffice accepts a GET... which is easier so wth
+			// Metoffice accepts a GET... which is easier so wtf
 			resp, err := client.Get(baseUrl + data.Encode())
 			if err != nil {
 				logger.Errorf("Failed to POST data [%v]", err)
-				continue
+				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != 200 {
 				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 			}
-		}
-
+		}()
 	}
 }
 
 // build the map with the required data
 func (w *weatherstation) prepData(min int) (url.Values, error) {
-	//wowData := make(map[string]string)
 	wowData := url.Values{}
 
 	wowsiteid, idok := os.LookupEnv("WOWSITEID")
@@ -129,15 +120,16 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// system info
 	wowData.Add("softwaretype", version)
 
-	tempC := 0.0
-	pressureInHg := 0.0
-	humidity := 0.0
-	tempf := 0.0
-	rainInch := 0.0
-	windDirection := 0.0
-	windSpeed := 0.0
-	windGust := 0.0
-	rainDayInch := 0.0
+	tempC := float64(w.data.GetBuffer(TempBuffer).AverageLast(reportFreqMin))
+	pressureInHg := float64(w.data.GetBuffer(PressureBuffer).AverageLast(reportFreqMin)) * hPaToInHg
+	humidity := float64(w.data.GetBuffer(HumidityBuffer).AverageLast(reportFreqMin))
+	tempf := ctof(tempC)
+	rainInch := mmToIn(float64(w.data.GetBuffer(RainBuffer).AverageLast(reportFreqMin)))
+	windDirection := float64(w.data.GetBuffer(AverageWindDirectionBuffer).AverageLast(reportFreqMin))
+	windSpeed := float64(w.data.GetBuffer(WindSpeedBuffer).AverageLast(reportFreqMin))
+	windGust := float64(w.data.GetBuffer(WindGustBuffer).AverageLast(reportFreqMin))
+	_, _, _, s := w.data.GetBuffer(RainBuffer).GetAutoSum().GetAverageMinMaxSum()
+	rainDayInch := float64(s)
 
 	// data
 	/*
@@ -176,4 +168,13 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
 	wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
 	return wowData, nil
+}
+
+func ctof(c float64) float64 {
+	//(0°C × 9/5) + 32 = 32°F
+	return ((c * 9 / 5) + 32)
+}
+
+func mmToIn(mm float64) float64 {
+	return mm * mmToInch
 }

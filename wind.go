@@ -36,7 +36,11 @@ that equates to 1.429 MPH. This will need to be confirmed and calibrated at some
 
 const (
 	// 1 tick/second = 1.492MPH wind
-	mphPerTick float64 = 1.429
+	mphPerTick                 = 1.429
+	WindSpeedBuffer            = "windSpeed"
+	WindGustBuffer             = "windGust"
+	AverageWindDirectionBuffer = "windDirectionAvg"
+	MedianWindDirectionBuffer  = "windDirectionMedian"
 )
 
 var (
@@ -67,17 +71,17 @@ func (w *weatherstation) calculateValues() {
 	var numSeconds = 3
 	sumraw, gustraw, _ := rawSpeed.SumMinMaxLast(numSeconds)
 	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
-	w.data.GetBuffer("windSpeed").AddItem(speed)
+	w.data.GetBuffer(WindSpeedBuffer).AddItem(speed)
 	gust := (mphPerTick * float64(gustraw)) / float64(numSeconds)
-	w.data.GetBuffer("windGust").AddItem(gust)
+	w.data.GetBuffer(WindGustBuffer).AddItem(gust)
 
 	// use bigger sample for wind direction - whole 60 second buffer
 	average, _, mn, mx := rawDirection.GetAverageMinMaxSum()
 	diff := float64(mx) - float64(mn)
 	median := float64(mn) + (diff / 2)
 	logrus.Infof("Wind 3 second average [%v], median [%v]", average, median)
-	w.data.GetBuffer("windDirectionAvg").AddItem(float64(average))
-	w.data.GetBuffer("windDirectionMedian").AddItem(median)
+	w.data.GetBuffer(AverageWindDirectionBuffer).AddItem(float64(average))
+	w.data.GetBuffer(MedianWindDirectionBuffer).AddItem(median)
 
 	Prom_windspeed.Set(speed)
 	Prom_windgust.Set(gust)
@@ -109,8 +113,8 @@ func (w *weatherstation) setupWindSpeedBuffers() {
 	windAvgDirectionBuffer := utils.NewBuffer(60)
 	windMedianDirectionBuffer := utils.NewBuffer(60)
 
-	w.data.AddBuffer("windSpeed", windSpeedBuffer)
-	w.data.AddBuffer("windGust", windSpeedGustBuffer)
-	w.data.AddBuffer("windDirectionAvg", windAvgDirectionBuffer)
-	w.data.AddBuffer("windDirectionMedian", windMedianDirectionBuffer)
+	w.data.AddBuffer(WindSpeedBuffer, windSpeedBuffer)
+	w.data.AddBuffer(WindGustBuffer, windSpeedGustBuffer)
+	w.data.AddBuffer(AverageWindDirectionBuffer, windAvgDirectionBuffer)
+	w.data.AddBuffer(MedianWindDirectionBuffer, windMedianDirectionBuffer)
 }
