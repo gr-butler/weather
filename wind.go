@@ -79,7 +79,7 @@ func (w *weatherstation) calculateValues() {
 	average, _, _, _ := rawDirection.GetAverageMinMaxSum()
 	w.data.GetBuffer(AverageWindDirectionBuffer).AddItem(float64(average))
 
-	logrus.Infof("Wind direction average [%3.2f], speed [%3.2f] gust [%3.2f]", average, speed, gust)
+	logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, speed, gust)
 
 	Prom_windspeed.Set(speed)
 	Prom_windgust.Set(gust)
@@ -89,22 +89,22 @@ func (w *weatherstation) calculateValues() {
 func (w *weatherstation) setupWindSpeedBuffers() {
 
 	windSpeedBuffer := utils.NewBuffer(60)
-	// needs min, max and avg day buffers
-	windMinSpeedDayBuffer := utils.NewBuffer(24)
-	windMaxnSpeedDayBuffer := utils.NewBuffer(24)
-	windAvgSpeedDayBuffer := utils.NewBuffer(24)
-	windSpeedBuffer.SetAutoMinimum(windMinSpeedDayBuffer)
-	windSpeedBuffer.SetAutoMaximum(windMaxnSpeedDayBuffer)
-	windSpeedBuffer.SetAutoAverage(windAvgSpeedDayBuffer)
+	// // needs min, max and avg day buffers
+	// windMinSpeedDayBuffer := utils.NewBuffer(24)
+	// windMaxnSpeedDayBuffer := utils.NewBuffer(24)
+	// windAvgSpeedDayBuffer := utils.NewBuffer(24)
+	// windSpeedBuffer.SetAutoMinimum(windMinSpeedDayBuffer)
+	// windSpeedBuffer.SetAutoMaximum(windMaxnSpeedDayBuffer)
+	// windSpeedBuffer.SetAutoAverage(windAvgSpeedDayBuffer)
 
 	windSpeedGustBuffer := utils.NewBuffer(60)
 	// needs min, max and avg day buffers
-	windMinGustDayBuffer := utils.NewBuffer(24)
-	windMaxGustDayBuffer := utils.NewBuffer(24)
-	windAvgGustDayBuffer := utils.NewBuffer(24)
-	windSpeedGustBuffer.SetAutoMinimum(windMinGustDayBuffer)
-	windSpeedGustBuffer.SetAutoMaximum(windMaxGustDayBuffer)
-	windSpeedGustBuffer.SetAutoAverage(windAvgGustDayBuffer)
+	// windMinGustDayBuffer := utils.NewBuffer(24)
+	// windMaxGustDayBuffer := utils.NewBuffer(24)
+	// windAvgGustDayBuffer := utils.NewBuffer(24)
+	// windSpeedGustBuffer.SetAutoMinimum(windMinGustDayBuffer)
+	// windSpeedGustBuffer.SetAutoMaximum(windMaxGustDayBuffer)
+	// windSpeedGustBuffer.SetAutoAverage(windAvgGustDayBuffer)
 
 	// what do we need?
 	windAvgDirectionBuffer := utils.NewBuffer(60)

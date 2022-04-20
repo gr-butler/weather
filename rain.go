@@ -50,10 +50,10 @@ func (w *weatherstation) setupRainBuffers() {
 	rainMinuteBuffer := utils.NewBuffer(60)
 
 	// add on auto hour buffers to track day values
-	rainMinimumHourBuffer := utils.NewBuffer(24)
-	rainMinuteBuffer.SetAutoMinimum(rainMinimumHourBuffer)
-	rainMaximumHourBuffer := utils.NewBuffer(24)
-	rainMinuteBuffer.SetAutoMaximum(rainMaximumHourBuffer)
+	// rainMinimumHourBuffer := utils.NewBuffer(24)
+	// rainMinuteBuffer.SetAutoMinimum(rainMinimumHourBuffer)
+	// rainMaximumHourBuffer := utils.NewBuffer(24)
+	// rainMinuteBuffer.SetAutoMaximum(rainMaximumHourBuffer)
 	rainSumHourBuffer := utils.NewBuffer(24)
 	rainMinuteBuffer.SetAutoSum(rainSumHourBuffer)
 

@@ -190,8 +190,6 @@ func (s *Sensors) monitorWindGPIO() {
 	defer func() { _ = (*s.GPIO.windsensor.windpin).Halt() }()
 	for {
 		func() {
-			s.GPIO.windsensor.windLock.Lock()
-			defer s.GPIO.windsensor.windLock.Unlock()
 			(*s.GPIO.windsensor.windpin).WaitForEdge(-1)
 			s.GPIO.windsensor.pulseCount += 1
 		}()
