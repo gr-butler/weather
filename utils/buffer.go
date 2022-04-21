@@ -161,6 +161,22 @@ func (b *SampleBuffer) AverageLast(numberOfItems int) Average {
 	return Average(sum / float64(items))
 }
 
+func (b *SampleBuffer) AverageLastFrom(numberOfItems int, index int) Average {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	items := numberOfItems
+	sum := 0.0
+	for numberOfItems > 0 {
+		sum += b.data[index]
+		index += 1
+		if index == b.size {
+			index = 0
+		}
+		numberOfItems -= 1
+	}
+	return Average(sum / float64(items))
+}
+
 func (b *SampleBuffer) getAverageMinMaxSum() (Average, Minimum, Maximum, Sum) {
 	min := math.MaxFloat64
 	max := 0.0
@@ -184,4 +200,8 @@ func (b *SampleBuffer) GetRawData() ([]float64, Size, Position) {
 	defer b.lock.Unlock()
 	copy := b.data
 	return copy, Size(b.size), Position(b.position)
+}
+
+func (b *SampleBuffer) GetSize() int {
+	return b.size
 }

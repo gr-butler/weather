@@ -32,6 +32,15 @@ The anemometer I use generates 1 pulse per revolution and the specifications sta
 that equates to 1.429 MPH. This will need to be confirmed and calibrated at some time.
 
 
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5948875/
+
+The wind gust speed, Umax, is defined as a short-duration maximum of the horizontal
+wind speed during a longer sampling period (T). Mathematically, it is expressed as
+the maximum of the moving averages with a moving average window length equal to the
+gust duration (tg). Traditionally in meteorological applications, the gusts are
+measured and the wind forecasts issued using a gust duration tg =  3 s and a sample
+length T =  10 min
+
 */
 
 const (
@@ -49,7 +58,7 @@ var (
 
 func (w *weatherstation) StartWindMonitor() {
 	w.setupWindSpeedBuffers()
-	rawSpeed = utils.NewBuffer(60)
+	rawSpeed = utils.NewBuffer(600) // 10 minute
 	rawDirection = utils.NewBuffer(60)
 	// once per second record the wind speed (ticks)
 	go w.recordWindSpeedData()
@@ -69,11 +78,11 @@ func (w *weatherstation) recordWindSpeedData() {
 func (w *weatherstation) calculateValues() {
 	// sample the last 3 seconds and calculate the Speed and Gust values
 	var numSeconds = 3
-	sumraw, gustraw, _ := rawSpeed.SumMinMaxLast(numSeconds)
+	sumraw, _, _ := rawSpeed.SumMinMaxLast(numSeconds)
 	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
 	wsb := w.data.GetBuffer(WindSpeedBuffer)
 	wsb.AddItem(speed)
-	gust := (mphPerTick * float64(gustraw)) / float64(numSeconds)
+	gust := mphPerTick * calculateGust(rawSpeed)
 	wgb := w.data.GetBuffer(WindGustBuffer)
 	wgb.AddItem(gust)
 
@@ -90,6 +99,25 @@ func (w *weatherstation) calculateValues() {
 	if float64(wspeed) > 1 {
 		Prom_windDirection.Set(float64(average))
 	}
+}
+
+func calculateGust(buf *utils.SampleBuffer) float64 {
+	size := buf.GetSize()
+	copy := buf
+	movingAvg := make([]float64, size)
+	window := 3
+
+	for x := 0; x < size; x++ {
+		movingAvg[x] = float64(copy.AverageLastFrom(window, x))
+	}
+	// return max of the moving average
+	max := 0.0
+	for _, v := range movingAvg {
+		if v > max {
+			max = v
+		}
+	}
+	return max
 }
 
 func (w *weatherstation) setupWindSpeedBuffers() {
