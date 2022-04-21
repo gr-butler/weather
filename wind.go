@@ -70,20 +70,26 @@ func (w *weatherstation) calculateValues() {
 	// sample the last 3 seconds and calculate the Speed and Gust values
 	var numSeconds = 3
 	sumraw, gustraw, _ := rawSpeed.SumMinMaxLast(numSeconds)
-	speed := mphPerTick * (float64(sumraw) / float64(numSeconds))
-	w.data.GetBuffer(WindSpeedBuffer).AddItem(speed)
-	gust := mphPerTick * (float64(gustraw) / float64(numSeconds))
-	w.data.GetBuffer(WindGustBuffer).AddItem(gust)
+	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
+	wsb := w.data.GetBuffer(WindSpeedBuffer)
+	wsb.AddItem(speed)
+	gust := (mphPerTick * float64(gustraw)) / float64(numSeconds)
+	wgb := w.data.GetBuffer(WindGustBuffer)
+	wgb.AddItem(gust)
 
-	// use bigger sample for wind direction - whole 60 second buffer
+	// use bigger sample for promethius - whole 60 second buffers
 	average, _, _, _ := rawDirection.GetAverageMinMaxSum()
 	w.data.GetBuffer(AverageWindDirectionBuffer).AddItem(float64(average))
+	wspeed, _, _, _ := wsb.GetAverageMinMaxSum()
+	wgust, _, _, _ := wgb.GetAverageMinMaxSum()
 
-	logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, speed, gust)
+	logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, wspeed, wgust)
 
-	Prom_windspeed.Set(speed)
-	Prom_windgust.Set(gust)
-	Prom_windDirection.Set(float64(average))
+	Prom_windspeed.Set(float64(wspeed))
+	Prom_windgust.Set(float64(wgust))
+	if float64(wspeed) > 1 {
+		Prom_windDirection.Set(float64(average))
+	}
 }
 
 func (w *weatherstation) setupWindSpeedBuffers() {

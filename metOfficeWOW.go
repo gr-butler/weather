@@ -125,7 +125,9 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	humidity := float64(w.data.GetBuffer(HumidityBuffer).AverageLast(reportFreqMin))
 	tempf := ctof(tempC)
 	rainInch := mmToIn(float64(w.data.GetBuffer(RainBuffer).AverageLast(reportFreqMin)))
+
 	windDirection := float64(w.data.GetBuffer(AverageWindDirectionBuffer).AverageLast(reportFreqMin))
+
 	windSpeed := float64(w.data.GetBuffer(WindSpeedBuffer).AverageLast(reportFreqMin))
 	windGust := float64(w.data.GetBuffer(WindGustBuffer).AverageLast(reportFreqMin))
 	_, _, _, s := w.data.GetBuffer(RainBuffer).GetAutoSum().GetAverageMinMaxSum()
