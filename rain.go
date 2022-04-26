@@ -1,82 +1,61 @@
 package main
 
 import (
-	"math"
 	"time"
 
+	"github.com/pointer2null/weather/utils"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
 )
 
 const (
-	mmPerBucket float64 = 0.2794
-	hourRateMin int     = 10 // number of minutes to average for hourly rate
+	mmPerBucketTip float64 = 0.2794
+	hourRateMins   int     = 10 // number of minutes to average for hourly rate
+	RainBuffer             = "rain"
 )
 
-func (w *weatherstation) monitorRainGPIO() {
-	logger.Info("Starting tip bucket")
-	defer func() { _ = (*w.s.rainpin).Halt() }()
-	for {
-		(*w.s.rainpin).WaitForEdge(-1)
-		if (*w.s.rainpin).Read() == gpio.Low {
-			w.count++
-			w.lastTip = time.Now()
-			logger.Infof("Bucket tip. [%v]", w.count)
-		}
-		time.Sleep(time.Second)
-	}
+func (w *weatherstation) StartRainMonitor() {
+	w.setupRainBuffers()
+	go w.readRainData()
 }
 
+// once per minute the number of bucket tips are read and we store this in the minute buffer
+// once per hour on the overflow we calculate the min/max for that hour and save to their buffers
 func (w *weatherstation) readRainData() {
-	go w.monitorRainGPIO()
-	lastHour := 0
-	for x := range time.Tick(time.Minute) {
-		min := x.Minute()
-		// store day total (mm)
-		if x.Hour() == lastHour {
-			w.rainTotals[x.Hour()] += w.count * mmPerBucket
-		} else {
-			// first time we write for this hour, reset the count
-			w.rainTotals[x.Hour()] = w.count * mmPerBucket
-			lastHour = x.Hour()
-		}
-		
-		rainDayTotal.Set(w.getLast24HRain())
-		// store the bucket tip count for the last minute
-		w.btips[min] = w.count
-		// reset the bucket tip counter
-		w.count = 0
+	for range time.Tick(time.Minute) {
+		count := w.s.GetRainCount()
 
-		mmhr := w.getMMLastHour()
-		rate := w.getHourlyRate(min)
-		mmRainPerHour.Set(mmhr)
-		rainRatePerHour.Set(rate)
-		logger.Infof("Rain mm 24h [%.2f] total hr [%.2f], Rain rate [%.2f]", w.getLast24HRain(), mmhr, rate)
-		
+		// add this to the rain minute buffer
+		rbuff := w.data.GetBuffer(RainBuffer)
+		rbuff.AddItem(float64(count))
+
+		// Does this belong here? Or should this file just be about recording the data?
+		mmLastMinute := float64(count) * mmPerBucketTip
+		sum, _, _ := rbuff.SumMinMaxLast(hourRateMins)
+		tenMinSum_mm := sum * utils.Sum(mmLastMinute)
+		hourRate_mm := (float64(tenMinSum_mm) * 60) / float64(hourRateMins)
+
+		Prom_rainRatePerHour.Set(hourRate_mm)
+
+		// day totals - get the hour sum
+		_, _, _, s := rbuff.GetAutoSum().GetAverageMinMaxSum()
+		day := float64(s) * mmPerBucketTip
+		Prom_rainDayTotal.Set(day)
+
+		logger.Infof("Rain [%.2f] -> hourly rate [%.2f], 24 hour total [%.2f]", mmLastMinute, hourRate_mm, s)
 	}
 }
 
-func (w *weatherstation) getMMLastHour() float64 {
-	total := w.count
-	for _, x := range w.btips {
-		total += x
-	}
-	return math.Round(float64(total)*mmPerBucket*100) / 100
-}
+func (w *weatherstation) setupRainBuffers() {
 
-func (w *weatherstation) getLast24HRain() float64 {
-	total := 0.0
-	for _, x := range w.rainTotals {
-		total += x
-	}
-	return math.Round(float64(total)*100) / 100
-}
+	rainMinuteBuffer := utils.NewBuffer(60)
 
-// work out the rate per hour assuming it continues as it has in the last x minutes
-func (w *weatherstation) getHourlyRate(minute int) float64 {
-	count := SumLastRange(minute, hourRateMin, float64(w.count), &w.btips)
+	// add on auto hour buffers to track day values
+	// rainMinimumHourBuffer := utils.NewBuffer(24)
+	// rainMinuteBuffer.SetAutoMinimum(rainMinimumHourBuffer)
+	// rainMaximumHourBuffer := utils.NewBuffer(24)
+	// rainMinuteBuffer.SetAutoMaximum(rainMaximumHourBuffer)
+	rainSumHourBuffer := utils.NewBuffer(24)
+	rainMinuteBuffer.SetAutoSum(rainSumHourBuffer)
 
-	hourMultiplier := float64(60 / hourRateMin)
-
-	return (float64(count) * mmPerBucket * hourMultiplier)
+	w.data.AddBuffer(RainBuffer, rainMinuteBuffer)
 }

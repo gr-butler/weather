@@ -1,60 +1,86 @@
 package main
 
 import (
-	"math"
 	"time"
 
+	"github.com/pointer2null/weather/utils"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/physic"
 )
 
 const (
-	//hgToPa float64 = 133.322387415
-	paToInchHg float64 = 0.0002953
+	TempBuffer     = "temperature"
+	HumidityBuffer = "humidity"
+	PressureBuffer = "pressurehPa"
 )
 
-func (w *weatherstation) readAtmosphericSensors() {
-	w.doAtmosphere()
+func (w *weatherstation) StartAtmosphericMonitor() {
+	logger.Info("Starting atmosphere monitors")
+	// set the the required buffers
+	w.setupTemperatureBuffers()
+	w.setupHumidityBuffers()
+	w.SetupPressurehPaBuffers()
+
+	// sample and store sensor data
 	for range time.Tick(time.Minute) {
-		w.doAtmosphere()
+		t := w.s.GetTemperature()
+
+		w.data.GetBuffer(TempBuffer).AddItem(float64(t))
+		Prom_temperature.Set(float64(t))
+
+		hPa, rh := w.s.GetHumidityAndPressure()
+
+		w.data.GetBuffer(HumidityBuffer).AddItem(float64(rh))
+		w.data.GetBuffer(PressureBuffer).AddItem(float64(hPa))
+		Prom_atmPresure.Set(float64(hPa))
+		Prom_humidity.Set(float64(rh))
+		logger.Infof("Temperature [%3.2f], Pressure [%3.2f], Humidity [%3.2f]", t, hPa, rh)
 	}
 }
 
-func (w *weatherstation) doAtmosphere() {
-	hiT := physic.Env{}
-	
-	if w.s.hiResT != nil {
-		// if the sensor failed to read we'd get
-		if err := w.s.hiResT.Sense(&hiT); err != nil {
-			logger.Errorf("MCP9808 read failed [%v]", err)
-			w.tGood = false
-		} else {
-			w.tGood = true
-			w.tempf = hiT.Temperature.Fahrenheit()
-			w.hiResTemp = hiT.Temperature.Celsius()
-			// prometheus data
-			temperature.Set(w.hiResTemp)
-		}
-	}
+func (w *weatherstation) setupTemperatureBuffers() {
 
-	em := physic.Env{}
-	if w.s.bme != nil {
-		if err := w.s.bme.Sense(&em); err != nil {
-			// default values
-			logger.Errorf("BME280 read failed [%v]", err)
-			w.aGood = false
-		} else {
-			w.aGood = true
-			w.humidity = math.Round(float64(em.Humidity) / float64(physic.PercentRH))
-			w.pressure = math.Round(float64(em.Pressure)/float64(100*physic.Pascal)*100) / 100
-			w.pressureInHg = (float64(em.Pressure) / (float64(physic.Pascal))) * paToInchHg
-			w.temp = em.Temperature.Celsius()
-			// prometheus data
-			altTemp.Set(w.temp)
-			atmPresure.Set(w.pressure)
-			rh.Set(w.humidity)
-		}
-	}
+	temperatureMinuteBuffer := utils.NewBuffer(60)
 
-	logger.Infof("HiResTemp [%.2fC], Temp [%.2fC], Pressure [%10s] Hum [%6s]", hiT.Temperature.Celsius(), em.Temperature.Celsius(), em.Pressure, em.Humidity)
+	// tempAvgHourBuffer := utils.NewBuffer(24)
+	// temperatureMinuteBuffer.SetAutoAverage(tempAvgHourBuffer)
+
+	// tempMinHourBuffer := utils.NewBuffer(24)
+	// temperatureMinuteBuffer.SetAutoMinimum(tempMinHourBuffer)
+
+	// tempMaxHourBuffer := utils.NewBuffer(24)
+	// temperatureMinuteBuffer.SetAutoMaximum(tempMaxHourBuffer)
+
+	w.data.AddBuffer(TempBuffer, temperatureMinuteBuffer)
+}
+
+func (w *weatherstation) setupHumidityBuffers() {
+
+	humidityMinuteBuffer := utils.NewBuffer(60)
+
+	// humidityAvgHourBuffer := utils.NewBuffer(24)
+	// humidityMinuteBuffer.SetAutoAverage(humidityAvgHourBuffer)
+
+	// humidityMinHourBuffer := utils.NewBuffer(24)
+	// humidityMinuteBuffer.SetAutoMinimum(humidityMinHourBuffer)
+
+	// humidityMaxHourBuffer := utils.NewBuffer(24)
+	// humidityMinuteBuffer.SetAutoMaximum(humidityMaxHourBuffer)
+
+	w.data.AddBuffer(HumidityBuffer, humidityMinuteBuffer)
+}
+
+func (w *weatherstation) SetupPressurehPaBuffers() {
+
+	pressurehPaMinuteBuffer := utils.NewBuffer(60)
+
+	// pressurehPaAvgHourBuffer := utils.NewBuffer(24)
+	// pressurehPaMinuteBuffer.SetAutoAverage(pressurehPaAvgHourBuffer)
+
+	// pressurehPaMinHourBuffer := utils.NewBuffer(24)
+	// pressurehPaMinuteBuffer.SetAutoMinimum(pressurehPaMinHourBuffer)
+
+	// pressurehPaMaxHourBuffer := utils.NewBuffer(24)
+	// pressurehPaMinuteBuffer.SetAutoMaximum(pressurehPaMaxHourBuffer)
+
+	w.data.AddBuffer(PressureBuffer, pressurehPaMinuteBuffer)
 }

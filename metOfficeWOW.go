@@ -14,7 +14,7 @@ import (
 
 const Rd = 287.1
 const g = 9.807  // gravity
-const z0 = 24.71 // River aAD is 16.61, river height at 4.1m is level with the road and I'm 3m above that
+const z0 = 24.71 // River aOD is 16.61, river height at 4.1m is level with the road and I'm 3m above that
 const kelvin = 273.1
 
 /*
@@ -59,55 +59,46 @@ windgustdir 	Current Wind Gust Direction (using software specific time period) 	
 windgustmph 	Current Wind Gust (using software specific time period) 			Miles per Hour
 
 */
-
-const reportFreqMin = 10
-const tipToInch = 0.011
+//PressureinHg = 29.92 * ( Pressurehpa / 1013.2) = 0.02953 * Pressurehpa
+const hPaToInHg = 0.02953
 const mmToInch = 25.4
+const reportFreqMin = 10
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 // MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
-	    /*
-    Safety net for 'too many open files' issue on legacy code.
-    Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
-    Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
-    */
-    http.DefaultClient.Timeout = time.Minute * 1
-	client := http.Client{ Timeout: time.Second * 2 }
-	for t := range time.Tick(time.Minute) {
-		if t.Minute()%reportFreqMin == 0 {
+	/*
+	   Safety net for 'too many open files' issue on legacy code.
+	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
+	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
+	*/
+	http.DefaultClient.Timeout = time.Minute * 1
+	client := http.Client{Timeout: time.Second * 2}
+	for t := range time.Tick(time.Minute * reportFreqMin) {
+		func() {
 			logger.Info("Sending data to met office")
 			data, err := w.prepData(t.Minute())
 			if err != nil {
 				logger.Errorf("Failed to process data [%v]", err)
-				continue
+				return
 			}
-			// if t.Hour() == 9 && t.Minute() == 0 {
-			// 	// 9am - the odd time that the met office says is the end of one day and
-			// 	// the start of the next one.
-			// 	// send day rain total
-			// 	// dailyrainin
-			// 	data.Add("dailyrainin", fmt.Sprintf("%0.2f", w.getLast24HRain() / mmToInch))
-			// }
-			logger.Infof("Data: [%v]", data.Encode())
-			// Metoffice accepts a GET... which is easier so wth
+			logger.Infof("Data: [%v]", data)
+			// Metoffice accepts a GET... which is easier so wtf
 			resp, err := client.Get(baseUrl + data.Encode())
 			if err != nil {
 				logger.Errorf("Failed to POST data [%v]", err)
-				continue
+				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != 200 {
 				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 			}
-		}
-
+		}()
 	}
 }
 
 // build the map with the required data
 func (w *weatherstation) prepData(min int) (url.Values, error) {
-	//wowData := make(map[string]string)
 	wowData := url.Values{}
 
 	wowsiteid, idok := os.LookupEnv("WOWSITEID")
@@ -129,12 +120,25 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// system info
 	wowData.Add("softwaretype", version)
 
+	tempC := float64(w.data.GetBuffer(TempBuffer).AverageLast(reportFreqMin))
+	pressureInHg := float64(w.data.GetBuffer(PressureBuffer).AverageLast(reportFreqMin)) * hPaToInHg
+	humidity := float64(w.data.GetBuffer(HumidityBuffer).AverageLast(reportFreqMin))
+	tempf := ctof(tempC)
+	rainInch := mmToIn(float64(w.data.GetBuffer(RainBuffer).AverageLast(reportFreqMin)))
+
+	windDirection := float64(w.data.GetBuffer(AverageWindDirectionBuffer).AverageLast(reportFreqMin))
+
+	windSpeed := float64(w.data.GetBuffer(WindSpeedBuffer).AverageLast(reportFreqMin))
+	windGust := float64(w.data.GetBuffer(WindGustBuffer).AverageLast(reportFreqMin))
+	_, _, _, s := w.data.GetBuffer(RainBuffer).GetAutoSum().GetAverageMinMaxSum()
+	rainDayInch := float64(s)
+
 	// data
 	/*
 		3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
 	*/
 
-	tempK := w.hiResTemp + kelvin
+	tempK := tempC + kelvin
 
 	/*
 		4. Compute the scale height H = RdT/g, where Rd = 287.1 J/(kg K) and g = 9.807 m/s2.
@@ -150,25 +154,29 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 		made your pressure observation.
 	*/
 
-	mslp := w.pressureInHg * math.Exp(z0/H)
-	// we have had an incent where freezing fog took out the IIC bus and we lost sensors.
-	// this should prevent bad data being submitted
-	if w.aGood {
-		wowData.Add("baromin", fmt.Sprintf("%f", mslp))
-		wowData.Add("humidity", fmt.Sprintf("%0f", w.humidity))
-	}
-	if w.tGood {
-		wowData.Add("tempf", fmt.Sprintf("%0f", w.tempf))
-		//Td = T - ((100 - RH)/5.)
-		dewf := ((((w.hiResTemp + 273) - ((100 - (w.humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
-		wowData.Add("dewptf", fmt.Sprintf("%0f", dewf))
-	}
-	// rain inches since last reading
-	tips := SumLastRange(min, reportFreqMin, w.count, &w.btips)
-	// 1 tip = 0.2794mm = 0.011 inch
-	wowData.Add("rainin", fmt.Sprintf("%f", (tips*tipToInch)))
-	wowData.Add("winddir", fmt.Sprintf("%0.2f", w.windDirection))
-	wowData.Add("windspeedmph", fmt.Sprintf("%f", w.windSpeedAvg))
-	wowData.Add("windgustmph", fmt.Sprintf("%f", w.windGust))
+	mslp := pressureInHg * math.Exp(z0/H)
+
+	wowData.Add("baromin", fmt.Sprintf("%f", mslp))
+	wowData.Add("humidity", fmt.Sprintf("%0f", humidity))
+
+	wowData.Add("tempf", fmt.Sprintf("%0f", tempf))
+	//Td = T - ((100 - RH)/5.)
+	dewPoint_f := ((((tempC + 273) - ((100 - (humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
+	wowData.Add("dewptf", fmt.Sprintf("%0f", dewPoint_f))
+
+	wowData.Add("rainin", fmt.Sprintf("%f", rainInch))
+	wowData.Add("winddir", fmt.Sprintf("%0.2f", windDirection))
+	wowData.Add("windspeedmph", fmt.Sprintf("%f", windSpeed))
+	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
+	wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
 	return wowData, nil
+}
+
+func ctof(c float64) float64 {
+	//(0°C × 9/5) + 32 = 32°F
+	return ((c * 9 / 5) + 32)
+}
+
+func mmToIn(mm float64) float64 {
+	return mm * mmToInch
 }
