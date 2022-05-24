@@ -30,9 +30,9 @@ func (w *weatherstation) readRainData() {
 
 		// Does this belong here? Or should this file just be about recording the data?
 		mmLastMinute := float64(count) * mmPerBucketTip
-		sum, _, _ := rbuff.SumMinMaxLast(hourRateMins)
-		tenMinSum_mm := sum * utils.Sum(mmLastMinute)
-		hourRate_mm := (float64(tenMinSum_mm) * 60) / float64(hourRateMins)
+		tips, _, _ := rbuff.SumMinMaxLast(hourRateMins)
+		tenMinSum_mm := tips * utils.Sum(mmPerBucketTip)
+		hourRate_mm := float64(tenMinSum_mm) * 60 / float64(hourRateMins)
 
 		Prom_rainRatePerHour.Set(hourRate_mm)
 
