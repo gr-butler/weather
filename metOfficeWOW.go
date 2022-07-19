@@ -178,5 +178,5 @@ func ctof(c float64) float64 {
 }
 
 func mmToIn(mm float64) float64 {
-	return mm * mmToInch
+	return mm / mmToInch
 }
