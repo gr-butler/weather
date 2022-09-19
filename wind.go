@@ -4,8 +4,6 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/utils"
-	"github.com/sirupsen/logrus"
-	//logger "github.com/sirupsen/logrus"
 )
 
 /*
@@ -92,7 +90,7 @@ func (w *weatherstation) calculateValues() {
 	wspeed, _, _, _ := wsb.GetAverageMinMaxSum()
 	wgust, _, _, _ := wgb.GetAverageMinMaxSum()
 
-	logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, wspeed, wgust)
+	//logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, wspeed, wgust)
 
 	Prom_windspeed.Set(float64(wspeed))
 	Prom_windgust.Set(float64(wgust))

@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/pointer2null/weather/data"
@@ -127,12 +130,39 @@ func main() {
 
 	go w.MetofficeProcessor()
 
+	go w.heartbeat()
+
 	// start web service
 	http.HandleFunc("/", w.handler)
-	http.Handle("/metrics", promhttp.Handler())
-	logger.Info("Starting webservice...")
+	sendData, ok := os.LookupEnv("SENDDATA")
+	if ok && sendData == "true" {
+		logger.Info("Starting webservice...")
+		http.Handle("/metrics", promhttp.Handler())
+		logger.Fatal(http.ListenAndServe(":80", nil))
+	} else {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		done := make(chan bool, 1)
+		go func() {
+			<-sigs
+			done <- true
+		}()
+
+		logger.Warn("Promethius endpoint not started, wait for signal")
+		<-done
+		logger.Info("Exiting")
+	}
 	defer logger.Info("Exiting...")
-	logger.Fatal(http.ListenAndServe(":80", nil))
+}
+
+func (w *weatherstation) heartbeat() {
+	logger.Info("Heartbeat started")
+	// we can add complexity later, for now just flash to say we're alive!
+	for {
+		logger.Info("Sending heartbeat")
+		w.s.Heartbeat()
+		time.Sleep(time.Second * 30)
+	}
 }
 
 func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {

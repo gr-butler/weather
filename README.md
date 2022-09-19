@@ -24,6 +24,10 @@ We send data to the Met Office if the two relevent env variables are set:
 WOWSITEID The site ID
 WOWPIN The site PIN
 
+## Pi setup
+
+Use raspi-config to enable ssh and i2c
+
 ## compilation
 
 env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
@@ -48,6 +52,7 @@ Type=simple
 Restart=always
 RestartSec=1
 User=root
+Environment=SENDDATA=true
 Environment=WOWSITEID=aaa-bbb-ccc-ddd-eee-fff
 Environment=WOWPIN=0123456789
 ExecStart=/usr/local/bin/weatherServer.exe

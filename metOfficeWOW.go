@@ -83,15 +83,20 @@ func (w *weatherstation) MetofficeProcessor() {
 				return
 			}
 			logger.Infof("Data: [%v]", data)
-			// Metoffice accepts a GET... which is easier so wtf
-			resp, err := client.Get(baseUrl + data.Encode())
-			if err != nil {
-				logger.Errorf("Failed to POST data [%v]", err)
-				return
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
+			sendData, ok := os.LookupEnv("SENDDATA")
+			if ok && sendData == "true" {
+				// Metoffice accepts a GET... which is easier so wtf
+				resp, err := client.Get(baseUrl + data.Encode())
+				if err != nil {
+					logger.Errorf("Failed to POST data [%v]", err)
+					return
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != 200 {
+					logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
+				}
+			} else {
+				logger.Warn("SENDDATA is false.")
 			}
 		}()
 	}
