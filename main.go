@@ -134,7 +134,7 @@ func main() {
 
 	// start web service
 	http.HandleFunc("/", w.handler)
-	sendData, ok := os.LookupEnv("SENDDATA")
+	sendData, ok := os.LookupEnv("SENDPROMDATA")
 	if ok && sendData == "true" {
 		logger.Info("Starting webservice...")
 		http.Handle("/metrics", promhttp.Handler())

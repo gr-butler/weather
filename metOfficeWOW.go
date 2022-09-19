@@ -83,7 +83,7 @@ func (w *weatherstation) MetofficeProcessor() {
 				return
 			}
 			logger.Infof("Data: [%v]", data)
-			sendData, ok := os.LookupEnv("SENDDATA")
+			sendData, ok := os.LookupEnv("SENDWOWDATA")
 			if ok && sendData == "true" {
 				// Metoffice accepts a GET... which is easier so wtf
 				resp, err := client.Get(baseUrl + data.Encode())
