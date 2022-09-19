@@ -96,7 +96,7 @@ func (w *weatherstation) MetofficeProcessor() {
 					logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 				}
 			} else {
-				logger.Warn("SENDDATA is false.")
+				logger.Warn("SENDWOWDATA is false.")
 			}
 		}()
 	}

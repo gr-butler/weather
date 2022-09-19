@@ -23,6 +23,8 @@ We send data to the Met Office if the two relevent env variables are set:
 
 WOWSITEID The site ID
 WOWPIN The site PIN
+SENDWOWDATA=true
+SENDPROMDATA=true
 
 ## Pi setup
 
@@ -36,7 +38,7 @@ env GOARCH=arm GOARM=5 GOOS=linux go build -o weatherServer.exe
 
 scp weatherServer.exe pi@192.168.1.xxx:/home/pi
 
-journalctl -e -u weather.service
+journalctl -f -e -u weather.service
 
 ## service file
 
@@ -52,7 +54,8 @@ Type=simple
 Restart=always
 RestartSec=1
 User=root
-Environment=SENDDATA=true
+Environment=SENDWOWDATA=true
+Environment=SENDPROMDATA=true
 Environment=WOWSITEID=aaa-bbb-ccc-ddd-eee-fff
 Environment=WOWPIN=0123456789
 ExecStart=/usr/local/bin/weatherServer.exe

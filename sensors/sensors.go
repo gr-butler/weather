@@ -237,7 +237,7 @@ func (s *Sensors) heart() {
 		select {
 		case <-s.GPIO.heartbeat.beat:
 			(*s.GPIO.heartbeat.gpioPin).Out(gpio.High)
-			time.Sleep(time.Millisecond * 250) //TODO
+			time.Sleep(time.Millisecond * 200) //TODO
 			(*s.GPIO.heartbeat.gpioPin).Out(gpio.Low)
 		}
 	}

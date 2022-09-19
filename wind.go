@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/utils"
+	"github.com/sirupsen/logrus"
 )
 
 /*
@@ -63,17 +64,17 @@ func (w *weatherstation) StartWindMonitor() {
 }
 
 func (w *weatherstation) recordWindSpeedData() {
-	for range time.Tick(time.Second) {
+	for s := range time.Tick(time.Second) {
 		count := w.s.GetWindCount()
 		rawSpeed.AddItem(float64(count))
 		deg := w.s.GetWindDirection()
 		rawDirection.AddItem(deg)
-		w.calculateValues()
+		w.calculateValues(s)
 	}
 }
 
 // calculate average and gust
-func (w *weatherstation) calculateValues() {
+func (w *weatherstation) calculateValues(t time.Time) {
 	// sample the last 3 seconds and calculate the Speed and Gust values
 	var numSeconds = 3
 	sumraw, _, _ := rawSpeed.SumMinMaxLast(numSeconds)
@@ -90,7 +91,9 @@ func (w *weatherstation) calculateValues() {
 	wspeed, _, _, _ := wsb.GetAverageMinMaxSum()
 	wgust, _, _, _ := wgb.GetAverageMinMaxSum()
 
-	//logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, wspeed, wgust)
+	if t.Second() < 1 {
+		logrus.Infof("Wind direction [%3.2f], speed [%3.2f] gust [%3.2f]", average, wspeed, wgust)
+	}
 
 	Prom_windspeed.Set(float64(wspeed))
 	Prom_windgust.Set(float64(wgust))
