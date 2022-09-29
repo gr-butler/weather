@@ -2,13 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"database/sql"
+
+	_ "github.com/lib/pq"
+
 	"github.com/pointer2null/weather/data"
+	"github.com/pointer2null/weather/postgres"
 	"github.com/pointer2null/weather/sensors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -18,9 +24,18 @@ import (
 
 const version = "GRB-Weather-1.1.1"
 
+const (
+	host     = "192.168.1.212"
+	port     = 5432
+	user     = "weather"
+	password = "weather01."
+	dbname   = "weather"
+)
+
 type weatherstation struct {
 	s    *sensors.Sensors
 	data *data.WeatherData
+	dbq  *postgres.Queries
 }
 
 type webdata struct {
@@ -117,11 +132,23 @@ func main() {
 	err := w.s.InitSensors()
 	defer (*w.s.IIC.Bus).Close()
 	if err != nil {
-		logger.Errorf("Failed to initialise sensors!! [%v]", err)
+		logger.Errorf("Failed to initialise sensors: [%v]", err)
 		logger.Exit(1)
 	}
 
 	w.data = data.CreateWeatherData()
+
+	//connect to database
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		logger.Errorf("Failed to initialise database: [%v]", err)
+		logger.Exit(1)
+	}
+	defer db.Close()
+
+	w.dbq = postgres.New(db)
 
 	// start go routines
 	go w.StartAtmosphericMonitor()

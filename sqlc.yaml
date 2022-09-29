@@ -1,0 +1,9 @@
+version: "1"
+project:
+    id: ""
+packages: 
+    - name: "postgres"
+      path: "postgres"
+      emit_json_tags: true
+      schema: "db/schema.sql"
+      queries: "db/queries.sql"
