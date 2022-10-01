@@ -15,7 +15,7 @@ SELECT record, temperature, pressure, rain_mm, wind_speed, wind_direction from w
 `
 
 func (q *Queries) GetAllRecords(ctx context.Context) ([]Weather, error) {
-	rows, err := q.db.QueryContext(ctx, getAllRecords)
+	rows, err := q.query(ctx, q.getAllRecordsStmt, getAllRecords)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ type WriteRecordParams struct {
 }
 
 func (q *Queries) WriteRecord(ctx context.Context, arg WriteRecordParams) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, writeRecord,
+	row := q.queryRow(ctx, q.writeRecordStmt, writeRecord,
 		arg.Temperature,
 		arg.Pressure,
 		arg.RainMm,

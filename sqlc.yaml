@@ -1,9 +1,10 @@
 version: "1"
-project:
-    id: ""
 packages: 
     - name: "postgres"
-      path: "postgres"
+      path: "db/postgres"
       emit_json_tags: true
+      emit_prepared_queries: true
+      emit_interface: true
+      emit_all_enum_values: true
       schema: "db/schema.sql"
       queries: "db/queries.sql"
