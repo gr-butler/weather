@@ -72,7 +72,7 @@ func (w *weatherstation) MetofficeProcessor() {
 	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
 	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
 	*/
-	http.DefaultClient.Timeout = time.Minute * 1
+	http.DefaultClient.Timeout = time.Minute * 2
 	client := http.Client{Timeout: time.Second * 2}
 	for t := range time.Tick(time.Minute * reportFreqMin) {
 		func() {

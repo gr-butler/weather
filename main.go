@@ -16,7 +16,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-1.1.1"
+const version = "GRB-Weather-1.1.2"
 
 type weatherstation struct {
 	s    *sensors.Sensors

@@ -104,7 +104,7 @@ scrape_configs:
     static_configs:
     - targets:
        # change to match weather station ip
-      - 192.168.1.69:80
+      - 192.168.1.202:80
   - job_name: river
     scrape_interval: 30s
     static_configs:
