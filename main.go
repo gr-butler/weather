@@ -5,8 +5,6 @@ import (
 	"flag"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/pointer2null/weather/data"
@@ -27,16 +25,13 @@ type weatherstation struct {
 
 type webdata struct {
 	TimeNow      string  `json:"time"`
-	Temp         float64 `json:"temp_C"`
 	TempHiRes    float64 `json:"hiResTemp_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
 	PressureHg   float64 `json:"pressure_InchHg"`
 	RainHr       float64 `json:"rain_mm_hr"`
 	RainRate     float64 `json:"rain_rate"`
-	LastTip      string  `json:"last_tip"`
 	WindDir      float64 `json:"wind_dir"`
-	WindVolts    float64 `json:"wind_volt"`
 	WindSpeed    float64 `json:"wind_speed"`
 	WindSpeedAvg float64 `json:"wind_speed_avg"`
 }
@@ -153,16 +148,15 @@ func main() {
 		http.Handle("/metrics", promhttp.Handler())
 		logger.Fatal(http.ListenAndServe(":80", nil))
 	} else {
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		done := make(chan bool, 1)
-		go func() {
-			<-sigs
-			done <- true
-		}()
+		// sigs := make(chan os.Signal, 1)
+		// signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		// done := make(chan bool, 1)
+		// go func() {
+		// 	<-sigs
+		// 	done <- true
+		// }()
 
-		logger.Warn("Promethius endpoint not started, wait for signal")
-		<-done
+		logger.Fatal(http.ListenAndServe(":80", nil))
 		logger.Info("Exiting")
 	}
 	defer logger.Info("Exiting...")
@@ -203,5 +197,6 @@ func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Infof("Web read: \n[%v]", string(js))
+	//_, _ = rw.Write([]byte("<meta http-equiv=\"refresh\" content=\"5\">"))
 	_, _ = rw.Write(js) // not much we can do if this fails
 }

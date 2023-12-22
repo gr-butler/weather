@@ -92,8 +92,8 @@ func (s *Sensors) InitSensors() error {
 	s.IIC.Bus = &bus
 
 	logger.Info("Starting MCP9808 Temperature Sensor")
-	// Create a new temperature sensor a sense with default options.
-	tempSensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *temperatureAddr})
+	// Create a new temperature sensor with hig res
+	tempSensor, err := mcp9808.New(bus, &mcp9808.Opts{Addr: *temperatureAddr, Res: mcp9808.High})
 	if err != nil {
 		logger.Errorf("failed to open MCP9808 sensor: %v", err)
 		_ = bus.Close()
