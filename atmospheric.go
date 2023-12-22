@@ -20,20 +20,28 @@ func (w *weatherstation) StartAtmosphericMonitor() {
 	w.setupHumidityBuffers()
 	w.SetupPressurehPaBuffers()
 
+	duration := time.Minute
+	if w.testMode {
+		logger.Info("Atmosphereic poll set to 5 seconds")
+		duration = time.Second * 5
+	}
+
 	// sample and store sensor data
-	for range time.Tick(time.Minute) {
+	for range time.Tick(duration) {
+		if w.testMode {
+			logger.Info("Reading atmospheric data ...")
+		}
 		t := w.s.GetTemperature()
+		hPa, rh := w.s.GetHumidityAndPressure()
+		logger.Infof("Temperature [%3.2f], Pressure [%3.2f], Humidity [%3.2f]", t, hPa, rh)
 
 		w.data.GetBuffer(TempBuffer).AddItem(float64(t))
 		Prom_temperature.Set(float64(t))
-
-		hPa, rh := w.s.GetHumidityAndPressure()
 
 		w.data.GetBuffer(HumidityBuffer).AddItem(float64(rh))
 		w.data.GetBuffer(PressureBuffer).AddItem(float64(hPa))
 		Prom_atmPresure.Set(float64(hPa))
 		Prom_humidity.Set(float64(rh))
-		logger.Infof("Temperature [%3.2f], Pressure [%3.2f], Humidity [%3.2f]", t, hPa, rh)
 	}
 }
 

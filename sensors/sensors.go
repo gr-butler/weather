@@ -23,25 +23,19 @@ import (
  * Sensors is responsible for reading the sensors and converting sensor output to real values.
  */
 
-const (
-	//hgToPa float64 = 133.322387415
-	paToInchHg float64 = 0.0002953
-)
-
 type PressureInHg float64
 type PressurehPa float64
 type RelHumidity float64
 type TemperatureC float64
 
 type Sensors struct {
-	IIC  IIC  // I2C bus sensors
-	GPIO GPIO // Direct GPIO sensor inputs
+	IIC  IIC       // I2C bus sensors
+	Port GPIO_port // Direct GPIO sensor inputs
 }
 
-type GPIO struct {
+type GPIO_port struct {
 	windsensor *windsensor
 	rainsensor *rainsensor
-	heater     *heater
 	heartbeat  *heartbeat
 }
 
@@ -50,11 +44,6 @@ type windsensor struct {
 	pulseCount int
 	lastRead   int64
 	windLock   sync.Mutex
-}
-
-type heater struct {
-	gpioPin *gpio.PinIO // Humity sensor heater
-	enabled bool
 }
 
 type heartbeat struct {
@@ -70,6 +59,7 @@ type rainsensor struct {
 	rainTip  int
 	lastRead int64
 	rainLock sync.Mutex
+	ledOut   *gpio.PinIO
 }
 
 type IIC struct {
@@ -80,11 +70,10 @@ type IIC struct {
 }
 
 func (s *Sensors) InitSensors() error {
-	s.GPIO = GPIO{}
-	s.GPIO.rainsensor = &rainsensor{}
-	s.GPIO.windsensor = &windsensor{}
-	s.GPIO.heartbeat = &heartbeat{}
-	s.GPIO.heater = &heater{}
+	s.Port = GPIO_port{}
+	s.Port.rainsensor = &rainsensor{}
+	s.Port.windsensor = &windsensor{}
+	s.Port.heartbeat = &heartbeat{}
 
 	if _, err := host.Init(); err != nil {
 		logger.Errorf("Failed to init i2c bus [%v]", err)
@@ -121,29 +110,18 @@ func (s *Sensors) InitSensors() error {
 	}
 	s.IIC.Atm = bme
 
-	// setup heater pin
-	heaterPin := gpioreg.ByName("GPIO22")
-	if heaterPin == nil {
-		logger.Errorf("Failed to find GPIO22 - heater pin")
-		// failed heater is not critical
-	}
-	heaterPin.Out(gpio.Low)
-	// set anyway - will check for nil pin before using
-	s.GPIO.heater.gpioPin = &heaterPin
-	s.GPIO.heater.enabled = false
-
 	//setup heartbeat
 	heartbeatPin := gpioreg.ByName("GPIO23")
 	if heartbeatPin == nil {
 		logger.Errorf("Failed to find GPIO23 - heartbeat pin")
 		// failed heartbeat LED is not critical
 	}
-	heartbeatPin.Out(gpio.Low)
-	s.GPIO.heartbeat.gpioPin = &heartbeatPin
-	s.GPIO.heartbeat.enabled = true
-	s.GPIO.heartbeat.lastChange = time.Now().Unix()
-	s.GPIO.heartbeat.kill = false
-	s.GPIO.heartbeat.beat = make(chan bool)
+	_ = heartbeatPin.Out(gpio.Low)
+	s.Port.heartbeat.gpioPin = &heartbeatPin
+	s.Port.heartbeat.enabled = true
+	s.Port.heartbeat.lastChange = time.Now().Unix()
+	s.Port.heartbeat.kill = false
+	s.Port.heartbeat.beat = make(chan bool)
 
 	// Lookup a rainpin by its number:
 	rp := gpioreg.ByName("GPIO17")
@@ -163,7 +141,15 @@ func (s *Sensors) InitSensors() error {
 		_ = bus.Close()
 		return err
 	}
-	s.GPIO.rainsensor.gpioPin = &rainpin
+	s.Port.rainsensor.gpioPin = &rainpin
+
+	rainTipLed := gpioreg.ByName("GPIO24")
+	if rainTipLed == nil {
+		logger.Errorf("Failed to find GPIO24 - rain tip LED pin")
+		// failed raintip LED is not critical
+	}
+	_ = rainTipLed.Out(gpio.Low)
+	s.Port.rainsensor.ledOut = &rainTipLed
 
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName("GPIO27")
@@ -180,7 +166,7 @@ func (s *Sensors) InitSensors() error {
 		_ = bus.Close()
 		return err
 	}
-	s.GPIO.windsensor.gpioPin = &windpin
+	s.Port.windsensor.gpioPin = &windpin
 
 	logger.Info("Starting Wind direction ADC")
 	// Create a new ADS1115 ADC.
@@ -209,60 +195,41 @@ func (s *Sensors) InitSensors() error {
 	return nil
 }
 
-func (s *Sensors) toggleHeartbeat() {
-	s.GPIO.heartbeat.lastChange = time.Now().Unix()
-	if s.GPIO.heartbeat.enabled {
-		s.GPIO.heartbeat.enabled = false
-		(*s.GPIO.heartbeat.gpioPin).Out(gpio.Low)
-	} else {
-		s.GPIO.heartbeat.enabled = true
-		(*s.GPIO.heartbeat.gpioPin).Out(gpio.High)
-	}
-}
-
 func (s *Sensors) SetHeartbeatKill(val bool) {
-	s.GPIO.heartbeat.kill = val
+	s.Port.heartbeat.kill = val
 }
 
 func (s *Sensors) GetHeartbeatLastChange() int64 {
-	return s.GPIO.heartbeat.lastChange
+	return s.Port.heartbeat.lastChange
 }
 
 func (s *Sensors) Heartbeat() {
-	s.GPIO.heartbeat.beat <- true
+	s.Port.heartbeat.beat <- true
 }
 
+// nolint: gosimple
 func (s *Sensors) heart() {
 	for {
 		select {
-		case <-s.GPIO.heartbeat.beat:
-			(*s.GPIO.heartbeat.gpioPin).Out(gpio.High)
+		case <-s.Port.heartbeat.beat:
+			_ = (*s.Port.heartbeat.gpioPin).Out(gpio.High)
 			time.Sleep(time.Millisecond * 100) //TODO
-			(*s.GPIO.heartbeat.gpioPin).Out(gpio.Low)
+			_ = (*s.Port.heartbeat.gpioPin).Out(gpio.Low)
 		}
-	}
-}
-
-func (s *Sensors) SetHeater(on bool) {
-	s.GPIO.heater.enabled = on
-	if on {
-		(*s.GPIO.heater.gpioPin).Out(gpio.High)
-	} else {
-		(*s.GPIO.heater.gpioPin).Out(gpio.Low)
 	}
 }
 
 func (s *Sensors) monitorRainGPIO() {
 	logger.Info("Starting tip bucket monitor")
-	defer func() { _ = (*s.GPIO.rainsensor.gpioPin).Halt() }()
+	defer func() { _ = (*s.Port.rainsensor.gpioPin).Halt() }()
 	for {
 		func() {
-			(*s.GPIO.rainsensor.gpioPin).WaitForEdge(-1)
-			if (*s.GPIO.rainsensor.gpioPin).Read() == gpio.Low {
-				s.GPIO.rainsensor.rainLock.Lock()
-				defer s.GPIO.rainsensor.rainLock.Unlock()
-				s.GPIO.rainsensor.rainTip += 1
-				logger.Infof("Bucket tip. [%v] @ %v", s.GPIO.rainsensor.rainTip, time.Now().Format(time.ANSIC))
+			(*s.Port.rainsensor.gpioPin).WaitForEdge(-1)
+			if (*s.Port.rainsensor.gpioPin).Read() == gpio.Low {
+				s.Port.rainsensor.rainLock.Lock()
+				defer s.Port.rainsensor.rainLock.Unlock()
+				s.Port.rainsensor.rainTip += 1
+				logger.Infof("Bucket tip. [%v] @ %v", s.Port.rainsensor.rainTip, time.Now().Format(time.ANSIC))
 				s.Heartbeat()
 			}
 		}()
@@ -271,31 +238,31 @@ func (s *Sensors) monitorRainGPIO() {
 
 func (s *Sensors) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	defer func() { _ = (*s.GPIO.windsensor.gpioPin).Halt() }()
+	defer func() { _ = (*s.Port.windsensor.gpioPin).Halt() }()
 	for {
 		func() {
-			(*s.GPIO.windsensor.gpioPin).WaitForEdge(-1)
-			s.GPIO.windsensor.pulseCount += 1
+			(*s.Port.windsensor.gpioPin).WaitForEdge(-1)
+			s.Port.windsensor.pulseCount += 1
 		}()
 	}
 }
 
 func (s *Sensors) GetWindCount() int {
-	s.GPIO.windsensor.windLock.Lock()
-	defer s.GPIO.windsensor.windLock.Unlock()
-	s.GPIO.windsensor.lastRead = time.Now().UnixMilli()
-	count := s.GPIO.windsensor.pulseCount
-	s.GPIO.windsensor.pulseCount = 0
+	s.Port.windsensor.windLock.Lock()
+	defer s.Port.windsensor.windLock.Unlock()
+	s.Port.windsensor.lastRead = time.Now().UnixMilli()
+	count := s.Port.windsensor.pulseCount
+	s.Port.windsensor.pulseCount = 0
 	return count
 }
 
 // Return the number of tip events since last read
 func (s *Sensors) GetRainCount() int {
-	s.GPIO.rainsensor.rainLock.Lock()
-	defer s.GPIO.rainsensor.rainLock.Unlock()
-	s.GPIO.rainsensor.lastRead = time.Now().UnixMilli()
-	count := s.GPIO.rainsensor.rainTip
-	s.GPIO.rainsensor.rainTip = 0
+	s.Port.rainsensor.rainLock.Lock()
+	defer s.Port.rainsensor.rainLock.Unlock()
+	s.Port.rainsensor.lastRead = time.Now().UnixMilli()
+	count := s.Port.rainsensor.rainTip
+	s.Port.rainsensor.rainTip = 0
 	s.Heartbeat()
 	return count
 }
@@ -303,7 +270,7 @@ func (s *Sensors) GetRainCount() int {
 func (s *Sensors) GetWindDirection() float64 {
 	sample, err := (*s.IIC.WindDir).Read()
 	if err != nil {
-		logger.Errorf("Error reading wind direction value [%v]", err)
+		logger.Debugf("Error reading wind direction value [%v]", err)
 		sample.Raw = 0
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,8 +20,9 @@ import (
 const version = "GRB-Weather-1.1.2"
 
 type weatherstation struct {
-	s    *sensors.Sensors
-	data *data.WeatherData
+	s        *sensors.Sensors
+	data     *data.WeatherData
+	testMode bool
 }
 
 type webdata struct {
@@ -111,8 +113,17 @@ func init() {
 
 func main() {
 	logger.Infof("Starting weather station [%v]", version)
+
+	testMode := flag.Bool("test", false, "test mode, does not send met office data")
+	flag.Parse()
+
+	if *testMode {
+		logger.Info("TEST MODE")
+	}
+
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
+	w.testMode = *testMode
 	w.s = &sensors.Sensors{}
 	err := w.s.InitSensors()
 	defer (*w.s.IIC.Bus).Close()
@@ -128,14 +139,16 @@ func main() {
 	go w.StartRainMonitor()
 	go w.StartWindMonitor()
 
-	go w.MetofficeProcessor()
+	if !(*testMode) {
+		go w.MetofficeProcessor()
+	}
 
 	go w.heartbeat()
 
 	// start web service
 	http.HandleFunc("/", w.handler)
 	sendData, ok := os.LookupEnv("SENDPROMDATA")
-	if ok && sendData == "true" {
+	if ok && sendData == "true" && !(*testMode) {
 		logger.Info("Starting webservice...")
 		http.Handle("/metrics", promhttp.Handler())
 		logger.Fatal(http.ListenAndServe(":80", nil))
