@@ -28,12 +28,12 @@ type webdata struct {
 	TempHiRes    float64 `json:"hiResTemp_C"`
 	Humidity     float64 `json:"humidity_RH"`
 	Pressure     float64 `json:"pressure_hPa"`
-	PressureHg   float64 `json:"pressure_InchHg"`
 	RainHr       float64 `json:"rain_mm_hr"`
 	RainRate     float64 `json:"rain_rate"`
 	WindDir      float64 `json:"wind_dir"`
 	WindSpeed    float64 `json:"wind_speed"`
 	WindSpeedAvg float64 `json:"wind_speed_avg"`
+	WindGust     float64 `json:"wind_gust"`
 }
 
 var Prom_atmPresure = prometheus.NewGauge(
@@ -174,7 +174,7 @@ func (w *weatherstation) heartbeat() {
 
 func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
-	hum, pres := w.s.GetHumidityAndPressure()
+	pres, hum := w.s.GetHumidityAndPressure()
 	wd := webdata{
 		TempHiRes: float64(w.s.GetTemperature()),
 		Humidity:  float64(hum),
