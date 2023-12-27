@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pointer2null/weather/constants"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
@@ -111,9 +112,9 @@ func (s *Sensors) InitSensors() error {
 	s.IIC.Atm = bme
 
 	//setup heartbeat
-	heartbeatPin := gpioreg.ByName("GPIO23")
+	heartbeatPin := gpioreg.ByName(constants.HeartbeatLed)
 	if heartbeatPin == nil {
-		logger.Errorf("Failed to find GPIO23 - heartbeat pin")
+		logger.Errorf("Failed to find %v - heartbeat pin", constants.HeartbeatLed)
 		// failed heartbeat LED is not critical
 	}
 	_ = heartbeatPin.Out(gpio.Low)
@@ -124,9 +125,9 @@ func (s *Sensors) InitSensors() error {
 	s.Port.heartbeat.beat = make(chan bool)
 
 	// Lookup a rainpin by its number:
-	rp := gpioreg.ByName("GPIO17")
+	rp := gpioreg.ByName(constants.RainSensorIn)
 	if rp == nil {
-		logger.Error("Failed to find GPIO17 - rain pin")
+		logger.Errorf("Failed to find %v - rain pin", constants.RainSensorIn)
 		_ = bus.Close()
 		return err
 	}
@@ -143,18 +144,18 @@ func (s *Sensors) InitSensors() error {
 	}
 	s.Port.rainsensor.gpioPin = &rainpin
 
-	rainTipLed := gpioreg.ByName("GPIO24")
+	rainTipLed := gpioreg.ByName(constants.RainTipLed)
 	if rainTipLed == nil {
-		logger.Errorf("Failed to find GPIO24 - rain tip LED pin")
+		logger.Errorf("Failed to find %v - rain tip LED pin", constants.RainTipLed)
 		// failed raintip LED is not critical
 	}
 	_ = rainTipLed.Out(gpio.Low)
 	s.Port.rainsensor.ledOut = &rainTipLed
 
 	// Lookup a windpin by its number:
-	windpin := gpioreg.ByName("GPIO27")
+	windpin := gpioreg.ByName(constants.RainSensorIn)
 	if windpin == nil {
-		logger.Error("Failed to find GPIO27 - wind pin")
+		logger.Errorf("Failed to find %v - wind pin", constants.RainSensorIn)
 		_ = bus.Close()
 		return err
 	}
