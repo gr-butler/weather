@@ -13,7 +13,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/pointer2null/weather/data"
-	"github.com/pointer2null/weather/postgres"
+	"github.com/pointer2null/weather/db/postgres"
 	"github.com/pointer2null/weather/sensors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -34,6 +34,7 @@ const (
 type weatherstation struct {
 	s        *sensors.Sensors
 	data     *data.WeatherData
+	dbq      *postgres.Queries
 	testMode bool
 }
 
