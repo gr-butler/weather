@@ -36,23 +36,8 @@ type Sensors struct {
 }
 
 type GPIO_port struct {
-	windsensor *windsensor
+	windsensor *anemometer
 	rainsensor *rainsensor
-}
-
-type windsensor struct {
-	gpioPin    *gpio.PinIO // Wind speed pulse
-	pulseCount int
-	lastRead   int64
-	windLock   sync.Mutex
-}
-
-type heartbeat struct {
-	gpioPin    *gpio.PinIO // Heartbeat LED
-	enabled    bool
-	lastChange int64
-	kill       bool
-	beat       chan bool
 }
 
 type rainsensor struct {
@@ -73,7 +58,7 @@ type IIC struct {
 func (s *Sensors) InitSensors() error {
 	s.Port = GPIO_port{}
 	s.Port.rainsensor = &rainsensor{}
-	s.Port.windsensor = &windsensor{}
+	s.Port.windsensor = &anemometer{}
 
 	if _, err := host.Init(); err != nil {
 		logger.Errorf("Failed to init i2c bus [%v]", err)
@@ -212,7 +197,6 @@ func (s *Sensors) monitorWindGPIO() {
 func (s *Sensors) GetWindCount() int {
 	s.Port.windsensor.windLock.Lock()
 	defer s.Port.windsensor.windLock.Unlock()
-	s.Port.windsensor.lastRead = time.Now().UnixMilli()
 	count := s.Port.windsensor.pulseCount
 	s.Port.windsensor.pulseCount = 0
 	return count
@@ -264,43 +248,4 @@ func (s *Sensors) GetTemperature() TemperatureC {
 		return TemperatureC(hiT.Temperature.Celsius())
 	}
 	return 0
-}
-
-func voltToDegrees(v float64) float64 {
-	// this is based on the sensor datasheet that gives a list of voltages for each direction when set up according
-	// to the circuit given. Have noticed the output isn't that accurate relative to the sensor direction...
-	switch {
-	case v < 0.365:
-		return 112.5
-	case v < 0.430:
-		return 67.5
-	case v < 0.535:
-		return 90.0
-	case v < 0.760:
-		return 157.5
-	case v < 1.045:
-		return 135.0
-	case v < 1.295:
-		return 202.5
-	case v < 1.690:
-		return 180.0
-	case v < 2.115:
-		return 22.5
-	case v < 2.590:
-		return 45.0
-	case v < 3.005:
-		return 247.5
-	case v < 3.225:
-		return 225.0
-	case v < 3.635:
-		return 337.5
-	case v < 3.940:
-		return 0
-	case v < 4.185:
-		return 292.5
-	case v < 4.475:
-		return 315.0
-	default:
-		return 270.0
-	}
 }

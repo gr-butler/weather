@@ -65,7 +65,7 @@ const mmToInch = 25.4
 const reportFreqMin = 10
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
-// MetofficeProcessor called as a go routing will send data to the wow url every reportFreqMin mins
+// MetofficeProcessor called as a go routine will send data to the wow url every reportFreqMin mins
 func (w *weatherstation) MetofficeProcessor() {
 	/*
 	   Safety net for 'too many open files' issue on legacy code.

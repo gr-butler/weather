@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/pointer2null/weather/constants"
 	"github.com/pointer2null/weather/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -44,7 +45,7 @@ length T =  10 min
 
 const (
 	// 1 tick/second = 1.492MPH wind
-	mphPerTick                 = 1.429
+
 	WindSpeedBuffer            = "windSpeed"
 	WindGustBuffer             = "windGust"
 	AverageWindDirectionBuffer = "windDirectionAvg"
@@ -78,10 +79,10 @@ func (w *weatherstation) calculateValues(t time.Time) {
 	// sample the last 3 seconds and calculate the Speed and Gust values
 	var numSeconds = 3
 	sumraw, _, _ := rawSpeed.SumMinMaxLast(numSeconds)
-	speed := (mphPerTick * float64(sumraw)) / float64(numSeconds)
+	speed := (constants.MphPerTick * float64(sumraw)) / float64(numSeconds)
 	wsb := w.data.GetBuffer(WindSpeedBuffer)
 	wsb.AddItem(speed)
-	gust := mphPerTick * calculateGust(rawSpeed)
+	gust := constants.MphPerTick * calculateGust(rawSpeed)
 	wgb := w.data.GetBuffer(WindGustBuffer)
 	wgb.AddItem(gust)
 
