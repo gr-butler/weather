@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pointer2null/weather/buffer"
 	"github.com/pointer2null/weather/constants"
-	"github.com/pointer2null/weather/utils"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
@@ -20,9 +20,9 @@ type anemometer struct {
 	windLock   sync.Mutex
 	dirADC     *ads1x15.PinADC
 	Bus        *i2c.Bus
-	speedBuf   *utils.SampleBuffer
-	gustBuf    *utils.SampleBuffer
-	dirBuf     *utils.SampleBuffer
+	speedBuf   *buffer.SampleBuffer
+	gustBuf    *buffer.SampleBuffer
+	dirBuf     *buffer.SampleBuffer
 }
 
 func (a *anemometer) NewAnemometer(bus *i2c.Bus) *anemometer {
@@ -60,10 +60,10 @@ func (a *anemometer) NewAnemometer(bus *i2c.Bus) *anemometer {
 	a.dirADC = &dirPin
 
 	// 4 samples per sec, for 2 mins = 120 * 4 = 480
-	a.speedBuf = utils.NewBuffer(480)
+	a.speedBuf = buffer.NewBuffer(480)
 	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
-	a.gustBuf = utils.NewBuffer(2400)
-	a.dirBuf = utils.NewBuffer(480)
+	a.gustBuf = buffer.NewBuffer(2400)
+	a.dirBuf = buffer.NewBuffer(480)
 	go a.monitorWindGPIO()
 
 	return a

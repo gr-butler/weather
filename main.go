@@ -15,9 +15,9 @@ import (
 	"periph.io/x/periph/conn/gpio/gpioreg"
 
 	"github.com/pointer2null/weather/constants"
-	"github.com/pointer2null/weather/constants/led"
 	"github.com/pointer2null/weather/data"
 	"github.com/pointer2null/weather/db/postgres"
+	"github.com/pointer2null/weather/led"
 	"github.com/pointer2null/weather/sensors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

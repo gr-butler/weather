@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/constants"
-	"github.com/pointer2null/weather/constants/led"
+	"github.com/pointer2null/weather/led"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
