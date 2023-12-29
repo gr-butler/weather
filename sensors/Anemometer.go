@@ -28,9 +28,9 @@ func (a *anemometer) NewAnemometer(bus *i2c.Bus) *anemometer {
 	a = &anemometer{}
 	a.Bus = bus
 	// Lookup a windpin by its number:
-	windpin := gpioreg.ByName(constants.RainSensorIn)
+	windpin := gpioreg.ByName(constants.WindSensorIn)
 	if windpin == nil {
-		logger.Errorf("Failed to find %v - wind pin", constants.RainSensorIn)
+		logger.Errorf("Failed to find %v - wind pin", constants.WindSensorIn)
 		return nil
 	}
 
