@@ -21,6 +21,7 @@ type anemometer struct {
 	dirADC     *ads1x15.PinADC
 	Bus        *i2c.Bus
 	speedBuf   *utils.SampleBuffer
+	gustBuf    *utils.SampleBuffer
 	dirBuf     *utils.SampleBuffer
 }
 
@@ -60,6 +61,8 @@ func (a *anemometer) NewAnemometer(bus *i2c.Bus) *anemometer {
 
 	// 4 samples per sec, for 2 mins = 120 * 4 = 480
 	a.speedBuf = utils.NewBuffer(480)
+	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
+	a.gustBuf = utils.NewBuffer(2400)
 	a.dirBuf = utils.NewBuffer(480)
 	go a.monitorWindGPIO()
 
@@ -96,8 +99,8 @@ func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
 	return constants.MphPerTick * float64(avg)
 }
 
-func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period"
-	data, s, _ := a.speedBuf.GetRawData()
+func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
+	data, s, _ := a.gustBuf.GetRawData()
 	size := int(s)
 	// make an array for the 3 second rolling average
 	avg := 0.0
