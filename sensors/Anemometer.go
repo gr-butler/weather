@@ -174,3 +174,38 @@ func voltToDegrees(v float64) float64 {
 		return 270.0
 	}
 }
+
+/*
+Measuring gusts and wind intensity
+
+Because wind is an element that varies rapidly over very short periods of
+time it is sampled at high frequency (every 0.25 sec) to capture the intensity
+of gusts, or short-lived peaks in speed, which inflict greatest damage in
+storms. The gust speed and direction are defined by the maximum three second
+average wind speed occurring in any period.
+
+The gust speed and direction are defined by the maximum three second average wind speed occurring in any period.
+
+A better measure of the overall wind intensity is defined by the average speed
+and direction over the ten minute period leading up to the reporting time.
+Mean wind over other averaging periods may also be calculated. A gale is
+defined as a surface wind of mean speed of 34-40 knots, averaged over a period
+of ten minutes. Terms such as 'severe gale', 'storm', etc are also used to
+describe winds of 41 knots or greater.
+
+How do we measure the wind.
+
+The anemometer I use generates 1 pulse per revolution and the specifications states
+that equates to 1.429 MPH. This will need to be confirmed and calibrated at some time.
+
+
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5948875/
+
+The wind gust speed, Umax, is defined as a short-duration maximum of the horizontal
+wind speed during a longer sampling period (T). Mathematically, it is expressed as
+the maximum of the moving averages with a moving average window length equal to the
+gust duration (tg). Traditionally in meteorological applications, the gusts are
+measured and the wind forecasts issued using a gust duration tg =  3 s and a sample
+length T =  10 min
+
+*/
