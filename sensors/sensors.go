@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/constants"
+	"github.com/pointer2null/weather/constants/led"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
@@ -37,7 +38,6 @@ type Sensors struct {
 type GPIO_port struct {
 	windsensor *windsensor
 	rainsensor *rainsensor
-	heartbeat  *heartbeat
 }
 
 type windsensor struct {
@@ -60,7 +60,7 @@ type rainsensor struct {
 	rainTip  int
 	lastRead int64
 	rainLock sync.Mutex
-	ledOut   *gpio.PinIO
+	ledOut   *led.LED
 }
 
 type IIC struct {
@@ -74,7 +74,6 @@ func (s *Sensors) InitSensors() error {
 	s.Port = GPIO_port{}
 	s.Port.rainsensor = &rainsensor{}
 	s.Port.windsensor = &windsensor{}
-	s.Port.heartbeat = &heartbeat{}
 
 	if _, err := host.Init(); err != nil {
 		logger.Errorf("Failed to init i2c bus [%v]", err)
@@ -111,19 +110,6 @@ func (s *Sensors) InitSensors() error {
 	}
 	s.IIC.Atm = bme
 
-	//setup heartbeat
-	heartbeatPin := gpioreg.ByName(constants.HeartbeatLed)
-	if heartbeatPin == nil {
-		logger.Errorf("Failed to find %v - heartbeat pin", constants.HeartbeatLed)
-		// failed heartbeat LED is not critical
-	}
-	_ = heartbeatPin.Out(gpio.Low)
-	s.Port.heartbeat.gpioPin = &heartbeatPin
-	s.Port.heartbeat.enabled = true
-	s.Port.heartbeat.lastChange = time.Now().Unix()
-	s.Port.heartbeat.kill = false
-	s.Port.heartbeat.beat = make(chan bool)
-
 	// Lookup a rainpin by its number:
 	rp := gpioreg.ByName(constants.RainSensorIn)
 	if rp == nil {
@@ -150,7 +136,7 @@ func (s *Sensors) InitSensors() error {
 		// failed raintip LED is not critical
 	}
 	_ = rainTipLed.Out(gpio.Low)
-	s.Port.rainsensor.ledOut = &rainTipLed
+	s.Port.rainsensor.ledOut = led.NewLED("Rain Tip", &rainTipLed)
 
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName(constants.RainSensorIn)
@@ -192,32 +178,7 @@ func (s *Sensors) InitSensors() error {
 	// this will be replaced when we move to the IIC weather head module
 	go s.monitorRainGPIO()
 	go s.monitorWindGPIO()
-	go s.heart()
 	return nil
-}
-
-func (s *Sensors) SetHeartbeatKill(val bool) {
-	s.Port.heartbeat.kill = val
-}
-
-func (s *Sensors) GetHeartbeatLastChange() int64 {
-	return s.Port.heartbeat.lastChange
-}
-
-func (s *Sensors) Heartbeat() {
-	s.Port.heartbeat.beat <- true
-}
-
-// nolint: gosimple
-func (s *Sensors) heart() {
-	for {
-		select {
-		case <-s.Port.heartbeat.beat:
-			_ = (*s.Port.heartbeat.gpioPin).Out(gpio.High)
-			time.Sleep(time.Millisecond * 100)
-			_ = (*s.Port.heartbeat.gpioPin).Out(gpio.Low)
-		}
-	}
 }
 
 func (s *Sensors) monitorRainGPIO() {
@@ -231,7 +192,7 @@ func (s *Sensors) monitorRainGPIO() {
 				defer s.Port.rainsensor.rainLock.Unlock()
 				s.Port.rainsensor.rainTip += 1
 				logger.Infof("Bucket tip. [%v] @ %v", s.Port.rainsensor.rainTip, time.Now().Format(time.ANSIC))
-				s.Heartbeat()
+				s.Port.rainsensor.ledOut.Flash()
 			}
 		}()
 	}
@@ -264,7 +225,6 @@ func (s *Sensors) GetRainCount() int {
 	s.Port.rainsensor.lastRead = time.Now().UnixMilli()
 	count := s.Port.rainsensor.rainTip
 	s.Port.rainsensor.rainTip = 0
-	s.Heartbeat()
 	return count
 }
 

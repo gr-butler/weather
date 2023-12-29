@@ -42,17 +42,24 @@ func (l *LED) On() {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	l.on = true
-	_ = (*l.gpioPin).Out(gpio.High)
+	if l.gpioPin != nil {
+		_ = (*l.gpioPin).Out(gpio.High)
+	}
 }
 
 func (l *LED) Off() {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	l.on = false
-	_ = (*l.gpioPin).Out(gpio.Low)
+	if l.gpioPin != nil {
+		_ = (*l.gpioPin).Out(gpio.Low)
+	}
 }
 
 func (l *LED) Flash() {
+	if l.gpioPin == nil {
+		return
+	}
 	if !l.lock.TryLock() {
 		// despite the function description, this is a valid use case. We don't want lots of
 		// flash requests all queuing waiting on the mutex, if a flash is in progress we can
@@ -74,6 +81,9 @@ func (l *LED) Flash() {
 }
 
 func (l *LED) Flicker(pulses int) {
+	if l.gpioPin == nil {
+		return
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	if pulses < 1 || pulses > 100 {

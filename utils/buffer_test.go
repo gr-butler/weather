@@ -53,7 +53,7 @@ func TestAddItem(t *testing.T) {
 	buf.AddItem(17)
 	buf.AddItem(9)
 
-	a, mn, mx, s = buf.GetAverageMinMaxSum()
+	_, mn, _, _ = buf.GetAverageMinMaxSum()
 	assert.Equal(t, Minimum(4.1), mn)
 
 	s, mn, mx = buf.SumMinMaxLast(2)

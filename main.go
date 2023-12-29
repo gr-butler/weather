@@ -11,7 +11,11 @@ import (
 	"database/sql"
 
 	_ "github.com/lib/pq"
+	"periph.io/x/periph/conn/gpio"
+	"periph.io/x/periph/conn/gpio/gpioreg"
 
+	"github.com/pointer2null/weather/constants"
+	"github.com/pointer2null/weather/constants/led"
 	"github.com/pointer2null/weather/data"
 	"github.com/pointer2null/weather/db/postgres"
 	"github.com/pointer2null/weather/sensors"
@@ -32,10 +36,11 @@ const (
 )
 
 type weatherstation struct {
-	s        *sensors.Sensors
-	data     *data.WeatherData
-	dbq      *postgres.Queries
-	testMode bool
+	s            *sensors.Sensors
+	data         *data.WeatherData
+	dbq          *postgres.Queries
+	testMode     bool
+	HeartbeatLed *led.LED
 }
 
 type webdata struct {
@@ -142,6 +147,15 @@ func main() {
 		logger.Exit(1)
 	}
 
+	//setup heartbeat
+	heartbeatPin := gpioreg.ByName(constants.HeartbeatLed)
+	if heartbeatPin == nil {
+		logger.Errorf("Failed to find %v - heartbeat pin", constants.HeartbeatLed)
+		// failed heartbeat LED is not critical
+	}
+	_ = heartbeatPin.Out(gpio.Low)
+	w.HeartbeatLed = led.NewLED("Heartbeat LED", &heartbeatPin)
+
 	w.data = data.CreateWeatherData()
 
 	//connect to database
@@ -175,14 +189,6 @@ func main() {
 		http.Handle("/metrics", promhttp.Handler())
 		logger.Fatal(http.ListenAndServe(":80", nil))
 	} else {
-		// sigs := make(chan os.Signal, 1)
-		// signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		// done := make(chan bool, 1)
-		// go func() {
-		// 	<-sigs
-		// 	done <- true
-		// }()
-
 		logger.Fatal(http.ListenAndServe(":80", nil))
 		logger.Info("Exiting")
 	}
@@ -194,7 +200,7 @@ func (w *weatherstation) heartbeat() {
 	// we can add complexity later, for now just flash to say we're alive!
 	for {
 		logger.Info("Sending heartbeat")
-		w.s.Heartbeat()
+		w.HeartbeatLed.Flash()
 		time.Sleep(time.Second * 30)
 	}
 }
