@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/pointer2null/weather/utils"
+	"github.com/pointer2null/weather/buffer"
 	logger "github.com/sirupsen/logrus"
 )
 
@@ -31,7 +31,7 @@ func (w *weatherstation) readRainData() {
 		// Does this belong here? Or should this file just be about recording the data?
 		mmLastMinute := float64(count) * mmPerBucketTip
 		tips, _, _ := rbuff.SumMinMaxLast(hourRateMins)
-		tenMinSum_mm := tips * utils.Sum(mmPerBucketTip)
+		tenMinSum_mm := tips * buffer.Sum(mmPerBucketTip)
 		hourRate_mm := float64(tenMinSum_mm) * 60 / float64(hourRateMins)
 
 		Prom_rainRatePerHour.Set(hourRate_mm)
@@ -47,14 +47,14 @@ func (w *weatherstation) readRainData() {
 
 func (w *weatherstation) setupRainBuffers() {
 
-	rainMinuteBuffer := utils.NewBuffer(60)
+	rainMinuteBuffer := buffer.NewBuffer(60)
 
 	// add on auto hour buffers to track day values
-	// rainMinimumHourBuffer := utils.NewBuffer(24)
+	// rainMinimumHourBuffer := buffer.NewBuffer(24)
 	// rainMinuteBuffer.SetAutoMinimum(rainMinimumHourBuffer)
-	// rainMaximumHourBuffer := utils.NewBuffer(24)
+	// rainMaximumHourBuffer := buffer.NewBuffer(24)
 	// rainMinuteBuffer.SetAutoMaximum(rainMaximumHourBuffer)
-	rainSumHourBuffer := utils.NewBuffer(24)
+	rainSumHourBuffer := buffer.NewBuffer(24)
 	rainMinuteBuffer.SetAutoSum(rainSumHourBuffer)
 
 	w.data.AddBuffer(RainBuffer, rainMinuteBuffer)

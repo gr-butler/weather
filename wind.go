@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"github.com/pointer2null/weather/buffer"
 	"github.com/pointer2null/weather/constants"
-	"github.com/pointer2null/weather/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -52,14 +52,14 @@ const (
 )
 
 var (
-	rawSpeed     *utils.SampleBuffer
-	rawDirection *utils.SampleBuffer
+	rawSpeed     *buffer.SampleBuffer
+	rawDirection *buffer.SampleBuffer
 )
 
 func (w *weatherstation) StartWindMonitor() {
 	w.setupWindSpeedBuffers()
-	rawSpeed = utils.NewBuffer(600) // 10 minute
-	rawDirection = utils.NewBuffer(60)
+	rawSpeed = buffer.NewBuffer(600) // 10 minute
+	rawDirection = buffer.NewBuffer(60)
 	// once per second record the wind speed (ticks)
 	go w.recordWindSpeedData()
 }
@@ -103,7 +103,7 @@ func (w *weatherstation) calculateValues(t time.Time) {
 	}
 }
 
-func calculateGust(buf *utils.SampleBuffer) float64 {
+func calculateGust(buf *buffer.SampleBuffer) float64 {
 	size := buf.GetSize()
 	copy := buf
 	movingAvg := make([]float64, size)
@@ -124,26 +124,26 @@ func calculateGust(buf *utils.SampleBuffer) float64 {
 
 func (w *weatherstation) setupWindSpeedBuffers() {
 
-	windSpeedBuffer := utils.NewBuffer(60)
+	windSpeedBuffer := buffer.NewBuffer(60)
 	// // needs min, max and avg day buffers
-	// windMinSpeedDayBuffer := utils.NewBuffer(24)
-	// windMaxnSpeedDayBuffer := utils.NewBuffer(24)
-	// windAvgSpeedDayBuffer := utils.NewBuffer(24)
+	// windMinSpeedDayBuffer := buffer.NewBuffer(24)
+	// windMaxnSpeedDayBuffer := buffer.NewBuffer(24)
+	// windAvgSpeedDayBuffer := buffer.NewBuffer(24)
 	// windSpeedBuffer.SetAutoMinimum(windMinSpeedDayBuffer)
 	// windSpeedBuffer.SetAutoMaximum(windMaxnSpeedDayBuffer)
 	// windSpeedBuffer.SetAutoAverage(windAvgSpeedDayBuffer)
 
-	windSpeedGustBuffer := utils.NewBuffer(60)
+	windSpeedGustBuffer := buffer.NewBuffer(60)
 	// needs min, max and avg day buffers
-	// windMinGustDayBuffer := utils.NewBuffer(24)
-	// windMaxGustDayBuffer := utils.NewBuffer(24)
-	// windAvgGustDayBuffer := utils.NewBuffer(24)
+	// windMinGustDayBuffer := buffer.NewBuffer(24)
+	// windMaxGustDayBuffer := buffer.NewBuffer(24)
+	// windAvgGustDayBuffer := buffer.NewBuffer(24)
 	// windSpeedGustBuffer.SetAutoMinimum(windMinGustDayBuffer)
 	// windSpeedGustBuffer.SetAutoMaximum(windMaxGustDayBuffer)
 	// windSpeedGustBuffer.SetAutoAverage(windAvgGustDayBuffer)
 
 	// what do we need?
-	windAvgDirectionBuffer := utils.NewBuffer(60)
+	windAvgDirectionBuffer := buffer.NewBuffer(60)
 
 	w.data.AddBuffer(WindSpeedBuffer, windSpeedBuffer)
 	w.data.AddBuffer(WindGustBuffer, windSpeedGustBuffer)
