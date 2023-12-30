@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "encoding/json"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -200,30 +200,26 @@ func (w *weatherstation) heartbeat() {
 }
 
 func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
-	// rw.Header().Set("Content-Type", "application/json")
-	// pres, hum := w.s.GetHumidityAndPressure()
-	// wd := webdata{
-	// 	TempHiRes: float64(w.s.GetTemperature()),
-	// 	Humidity:  float64(hum),
-	// 	Pressure:  float64(pres),
-	// 	//PressureHg: s.pressureInHg,
-	// 	//RainHr:     s.getMMLastHour(),
-	// 	//RainRate:     s.getHourlyRate(time.Now().Minute()),
-	// 	//LastTip:      s.lastTip.Format(time.RFC822),
-	// 	TimeNow: time.Now().Format(time.RFC822),
-	// 	//WindDir: w.s.GetWindDirection(),
-	// 	// WindSpeed:    ,
-	// 	// WindSpeedAvg: s.windSpeedAvg,
-	// }
+	rw.Header().Set("Content-Type", "application/json")
+	pres, hum := w.s.Atm.GetHumidityAndPressure()
+	wd := webdata{
+		TempHiRes: w.s.Atm.GetTemperature().Float64(),
+		Humidity:  hum.Float64(),
+		Pressure:  pres.Float64(),
+		RainHr:    w.s.Rain.GetRate().Float64(),
+		RainRate:  w.s.Rain.GetMinuteRate().Float64(),
+		TimeNow:   time.Now().Format(time.RFC822),
+		WindDir:   w.s.Wind.GetDirection(),
+		WindSpeed: w.s.Wind.GetSpeed(),
+	}
 
-	// js, err := json.Marshal(wd)
-	// if err != nil {
-	// 	logger.Errorf("JSON error [%v]", err)
-	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
+	js, err := json.Marshal(wd)
+	if err != nil {
+		logger.Errorf("JSON error [%v]", err)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// logger.Infof("Web read: \n[%v]", string(js))
-	// //_, _ = rw.Write([]byte("<meta http-equiv=\"refresh\" content=\"5\">"))
-	// _, _ = rw.Write(js) // not much we can do if this fails
+	logger.Infof("Web read: \n[%v]", string(js))
+	_, _ = rw.Write(js) // not much we can do if this fails
 }
