@@ -1,7 +1,6 @@
 package sensors
 
 import (
-	"sync"
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
@@ -15,14 +14,12 @@ import (
 )
 
 type anemometer struct {
-	gpioPin    *gpio.PinIO
-	pulseCount int
-	windLock   sync.Mutex
-	dirADC     *ads1x15.PinADC
-	Bus        *i2c.Bus
-	speedBuf   *buffer.SampleBuffer
-	gustBuf    *buffer.SampleBuffer
-	dirBuf     *buffer.SampleBuffer
+	gpioPin  *gpio.PinIO
+	dirADC   *ads1x15.PinADC
+	Bus      *i2c.Bus
+	speedBuf *buffer.SampleBuffer
+	gustBuf  *buffer.SampleBuffer
+	dirBuf   *buffer.SampleBuffer
 }
 
 func NewAnemometer(bus *i2c.Bus) *anemometer {

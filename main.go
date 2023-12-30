@@ -44,16 +44,15 @@ type weatherstation struct {
 }
 
 type webdata struct {
-	TimeNow      string  `json:"time"`
-	TempHiRes    float64 `json:"hiResTemp_C"`
-	Humidity     float64 `json:"humidity_RH"`
-	Pressure     float64 `json:"pressure_hPa"`
-	RainHr       float64 `json:"rain_mm_hr"`
-	RainRate     float64 `json:"rain_rate"`
-	WindDir      float64 `json:"wind_dir"`
-	WindSpeed    float64 `json:"wind_speed"`
-	WindSpeedAvg float64 `json:"wind_speed_avg"`
-	WindGust     float64 `json:"wind_gust"`
+	TimeNow   string  `json:"time"`
+	TempHiRes float64 `json:"hiResTemp_C"`
+	Humidity  float64 `json:"humidity_RH"`
+	Pressure  float64 `json:"pressure_hPa"`
+	RainHr    float64 `json:"rain_mm_hr"`
+	RainRate  float64 `json:"rain_rate"`
+	WindDir   float64 `json:"wind_dir"`
+	WindSpeed float64 `json:"wind_speed"`
+	WindGust  float64 `json:"wind_gust"`
 }
 
 var Prom_atmPresure = prometheus.NewGauge(
