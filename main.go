@@ -170,11 +170,6 @@ func main() {
 
 	w.dbq = postgres.New(db)
 
-	// start go routines
-	go w.StartAtmosphericMonitor()
-	go w.StartRainMonitor()
-	go w.StartWindMonitor()
-
 	if !(*testMode) {
 		go w.MetofficeProcessor()
 	}
@@ -197,7 +192,6 @@ func main() {
 
 func (w *weatherstation) heartbeat() {
 	logger.Info("Heartbeat started")
-	// we can add complexity later, for now just flash to say we're alive!
 	for {
 		logger.Info("Sending heartbeat")
 		w.HeartbeatLed.Flash()

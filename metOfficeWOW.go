@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/pointer2null/weather/constants"
 	logger "github.com/sirupsen/logrus"
 )
 
@@ -126,18 +125,21 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	// system info
 	wowData.Add("softwaretype", version)
 
-	tempC := float64(w.data.GetBuffer(TempBuffer).AverageLast(reportFreqMin))
-	pressureInHg := float64(w.data.GetBuffer(PressureBuffer).AverageLast(reportFreqMin)) * hPaToInHg
-	humidity := float64(w.data.GetBuffer(HumidityBuffer).AverageLast(reportFreqMin))
+	tempC := w.s.Atm.GetTemperature().Float64()
 	tempf := ctof(tempC)
-	rainInch := mmToIn(float64(w.data.GetBuffer(RainBuffer).AverageLast(reportFreqMin)))
 
-	windDirection := float64(w.data.GetBuffer(AverageWindDirectionBuffer).AverageLast(reportFreqMin))
+	p, humidity := w.s.Atm.GetHumidityAndPressure()
+	pressureInHg := p * hPaToInHg
 
-	windSpeed := float64(w.data.GetBuffer(WindSpeedBuffer).AverageLast(reportFreqMin))
-	windGust := float64(w.data.GetBuffer(WindGustBuffer).AverageLast(reportFreqMin))
-	_, _, _, s := w.data.GetBuffer(RainBuffer).GetAutoSum().GetAverageMinMaxSum()
-	rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
+	rainInch := mmToIn(w.s.Rain.GetAccumulation().Float64())
+	w.s.Rain.ResetAccumulation()
+
+	windDirection := w.s.Wind.GetDirection()
+
+	windSpeed := w.s.Wind.GetSpeed()
+	windGust := w.s.Wind.GetDirection()
+
+	//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
 
 	// data
 	/*
@@ -160,21 +162,21 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 		made your pressure observation.
 	*/
 
-	mslp := pressureInHg * math.Exp(z0/H)
+	mslp := pressureInHg.Float64() * math.Exp(z0/H)
 
 	wowData.Add("baromin", fmt.Sprintf("%f", mslp))
 	wowData.Add("humidity", fmt.Sprintf("%0f", humidity))
 
 	wowData.Add("tempf", fmt.Sprintf("%0f", tempf))
 	//Td = T - ((100 - RH)/5.)
-	dewPoint_f := ((((tempC + 273) - ((100 - (humidity)) / 5.0)) - 273) * 9 / 5.0) + 32
+	dewPoint_f := ((((tempC + 273) - ((100 - (humidity.Float64())) / 5.0)) - 273) * 9 / 5.0) + 32
 	wowData.Add("dewptf", fmt.Sprintf("%0f", dewPoint_f))
 
 	wowData.Add("rainin", fmt.Sprintf("%f", rainInch))
 	wowData.Add("winddir", fmt.Sprintf("%0.2f", windDirection))
 	wowData.Add("windspeedmph", fmt.Sprintf("%f", windSpeed))
 	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
-	wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
+	//wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
 	return wowData, nil
 }
 
