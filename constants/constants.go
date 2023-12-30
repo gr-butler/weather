@@ -37,5 +37,6 @@ const (
 	HeartbeatLed = GPIO23
 	RainTipLed   = GPIO24
 
-	MphPerTick = 1.429
+	MphPerTick     = 1.429
+	MMPerBucketTip = 0.2794
 )

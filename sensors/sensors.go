@@ -3,19 +3,12 @@ package sensors
 import (
 	"flag"
 	"math"
-	"sync"
-	"time"
 
-	"github.com/pointer2null/weather/constants"
-	"github.com/pointer2null/weather/led"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
 	"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/devices/bmxx80"
-	"periph.io/x/periph/experimental/conn/gpio/gpioutil"
 	"periph.io/x/periph/experimental/devices/ads1x15"
 	"periph.io/x/periph/experimental/devices/mcp9808"
 	"periph.io/x/periph/host"
@@ -37,15 +30,7 @@ type Sensors struct {
 
 type GPIO_port struct {
 	windsensor *anemometer
-	rainsensor *rainsensor
-}
-
-type rainsensor struct {
-	gpioPin  *gpio.PinIO // Rain bucket tip pin
-	rainTip  int
-	lastRead int64
-	rainLock sync.Mutex
-	ledOut   *led.LED
+	rainsensor *rainmeter
 }
 
 type IIC struct {
@@ -57,7 +42,7 @@ type IIC struct {
 
 func (s *Sensors) InitSensors() error {
 	s.Port = GPIO_port{}
-	s.Port.rainsensor = &rainsensor{}
+	s.Port.rainsensor = &rainmeter{}
 	s.Port.windsensor = &anemometer{}
 
 	if _, err := host.Init(); err != nil {
@@ -95,92 +80,12 @@ func (s *Sensors) InitSensors() error {
 	}
 	s.IIC.Atm = bme
 
-	// Lookup a rainpin by its number:
-	rp := gpioreg.ByName(constants.RainSensorIn)
-	if rp == nil {
-		logger.Errorf("Failed to find %v - rain pin", constants.RainSensorIn)
-		_ = bus.Close()
-		return err
-	}
-
-	logger.Infof("%s: %s", rp, rp.Function())
-
-	// Set up debounced pin
-	// Ignore glitches lasting less than 100ms, and ignore repeated edges within 500ms.
-	rainpin, err := gpioutil.Debounce(rp, 100*time.Millisecond, 500*time.Millisecond, gpio.FallingEdge)
-	if err != nil {
-		logger.Errorf("Failed to set debounce [%v]", err)
-		_ = bus.Close()
-		return err
-	}
-	s.Port.rainsensor.gpioPin = &rainpin
-
-	rainTipLed := gpioreg.ByName(constants.RainTipLed)
-	if rainTipLed == nil {
-		logger.Errorf("Failed to find %v - rain tip LED pin", constants.RainTipLed)
-		// failed raintip LED is not critical
-	}
-	_ = rainTipLed.Out(gpio.Low)
-	s.Port.rainsensor.ledOut = led.NewLED("Rain Tip", &rainTipLed)
-
-	// Lookup a windpin by its number:
-	windpin := gpioreg.ByName(constants.RainSensorIn)
-	if windpin == nil {
-		logger.Errorf("Failed to find %v - wind pin", constants.RainSensorIn)
-		_ = bus.Close()
-		return err
-	}
-
-	logger.Infof("%s: %s", windpin, windpin.Function())
-
-	if err = windpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
-		logger.Error(err)
-		_ = bus.Close()
-		return err
-	}
-	s.Port.windsensor.gpioPin = &windpin
-
-	logger.Info("Starting Wind direction ADC")
-	// Create a new ADS1115 ADC.
-	adc, err := ads1x15.NewADS1115(bus, &ads1x15.DefaultOpts)
-	if err != nil {
-		logger.Error(err)
-		_ = bus.Close()
-		return err
-	}
-
-	// Obtain an analog pin from the ADC.
-	dirPin, err := adc.PinForChannel(ads1x15.Channel0, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
-	if err != nil {
-		logger.Error(err)
-		_ = bus.Close()
-		return err
-	}
-	s.IIC.WindDir = &dirPin
-
 	logger.Info("Sensors initialized.")
 	// start rain bucket monitor
 	// this will be replaced when we move to the IIC weather head module
-	go s.monitorRainGPIO()
+
 	go s.monitorWindGPIO()
 	return nil
-}
-
-func (s *Sensors) monitorRainGPIO() {
-	logger.Info("Starting tip bucket monitor")
-	defer func() { _ = (*s.Port.rainsensor.gpioPin).Halt() }()
-	for {
-		func() {
-			(*s.Port.rainsensor.gpioPin).WaitForEdge(-1)
-			if (*s.Port.rainsensor.gpioPin).Read() == gpio.Low {
-				s.Port.rainsensor.rainLock.Lock()
-				defer s.Port.rainsensor.rainLock.Unlock()
-				s.Port.rainsensor.rainTip += 1
-				logger.Infof("Bucket tip. [%v] @ %v", s.Port.rainsensor.rainTip, time.Now().Format(time.ANSIC))
-				s.Port.rainsensor.ledOut.Flash()
-			}
-		}()
-	}
 }
 
 func (s *Sensors) monitorWindGPIO() {
@@ -206,10 +111,9 @@ func (s *Sensors) GetWindCount() int {
 func (s *Sensors) GetRainCount() int {
 	s.Port.rainsensor.rainLock.Lock()
 	defer s.Port.rainsensor.rainLock.Unlock()
-	s.Port.rainsensor.lastRead = time.Now().UnixMilli()
-	count := s.Port.rainsensor.rainTip
-	s.Port.rainsensor.rainTip = 0
-	return count
+	// count := s.Port.rainsensor.rainTip
+	// s.Port.rainsensor.rainTip = 0
+	return 0
 }
 
 func (s *Sensors) GetWindDirection() float64 {

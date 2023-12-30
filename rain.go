@@ -4,13 +4,13 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
+	"github.com/pointer2null/weather/constants"
 	logger "github.com/sirupsen/logrus"
 )
 
 const (
-	mmPerBucketTip float64 = 0.2794
-	hourRateMins   int     = 10 // number of minutes to average for hourly rate
-	RainBuffer             = "rain"
+	hourRateMins int = 10 // number of minutes to average for hourly rate
+	RainBuffer       = "rain"
 )
 
 func (w *weatherstation) StartRainMonitor() {
@@ -29,16 +29,16 @@ func (w *weatherstation) readRainData() {
 		rbuff.AddItem(float64(count))
 
 		// Does this belong here? Or should this file just be about recording the data?
-		mmLastMinute := float64(count) * mmPerBucketTip
+		mmLastMinute := float64(count) * constants.MMPerBucketTip
 		tips, _, _ := rbuff.SumMinMaxLast(hourRateMins)
-		tenMinSum_mm := tips * buffer.Sum(mmPerBucketTip)
+		tenMinSum_mm := tips * buffer.Sum(constants.MMPerBucketTip)
 		hourRate_mm := float64(tenMinSum_mm) * 60 / float64(hourRateMins)
 
 		Prom_rainRatePerHour.Set(hourRate_mm)
 
 		// day totals - get the hour sum
 		_, _, _, s := rbuff.GetAutoSum().GetAverageMinMaxSum()
-		day := float64(s) * mmPerBucketTip
+		day := float64(s) * constants.MMPerBucketTip
 		Prom_rainDayTotal.Set(day)
 
 		logger.Infof("Rain [%.2f] -> hourly rate [%.2f], 24 hour total [%.2f]", mmLastMinute, hourRate_mm, s)

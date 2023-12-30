@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/pointer2null/weather/constants"
 	logger "github.com/sirupsen/logrus"
 )
 
@@ -136,7 +137,7 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	windSpeed := float64(w.data.GetBuffer(WindSpeedBuffer).AverageLast(reportFreqMin))
 	windGust := float64(w.data.GetBuffer(WindGustBuffer).AverageLast(reportFreqMin))
 	_, _, _, s := w.data.GetBuffer(RainBuffer).GetAutoSum().GetAverageMinMaxSum()
-	rainDayInch := mmToIn(float64(s) * mmPerBucketTip)
+	rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
 
 	// data
 	/*
