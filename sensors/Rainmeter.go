@@ -29,8 +29,8 @@ func (m mmHr) Float64() float64 {
 	return float64(m)
 }
 
-func toMMHr(v int64) mmHr {
-	return mmHt(v)
+func toMMHr(v float64) mmHr {
+	return mmHr(v)
 }
 
 func (m mm) Float64() float64 {
@@ -80,7 +80,7 @@ func (r *rainmeter) GetRate() mmHr {
 
 	_, _, _, sum := r.tipBuf.GetAverageMinMaxSum()
 
-	return toMMHr(constants.MMPerBucketTip * sum)
+	return toMMHr(constants.MMPerBucketTip * float64(sum))
 }
 
 func (r *rainmeter) GetAccumulation() mm {
