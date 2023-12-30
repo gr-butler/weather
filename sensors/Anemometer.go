@@ -25,8 +25,8 @@ type anemometer struct {
 	dirBuf     *buffer.SampleBuffer
 }
 
-func (a *anemometer) NewAnemometer(bus *i2c.Bus) *anemometer {
-	a = &anemometer{}
+func NewAnemometer(bus *i2c.Bus) *anemometer {
+	a := &anemometer{}
 	a.Bus = bus
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName(constants.WindSensorIn)

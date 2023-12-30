@@ -1,7 +1,6 @@
 package sensors
 
 import (
-	"sync"
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
@@ -17,7 +16,6 @@ import (
 type rainmeter struct {
 	gpioPin      *gpio.PinIO // Rain bucket tip pin
 	accumulation int64
-	rainLock     sync.Mutex
 	ledOut       *led.LED
 	tipBuf       *buffer.SampleBuffer
 }
@@ -77,10 +75,13 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 }
 
 func (r *rainmeter) GetRate() mmHr {
-
 	_, _, _, sum := r.tipBuf.GetAverageMinMaxSum()
-
 	return toMMHr(constants.MMPerBucketTip * float64(sum))
+}
+
+func (r *rainmeter) GetMinuteRate() mm {
+	sum, _, _ := r.tipBuf.SumMinMaxLast(6) // last minute
+	return mm(int64(constants.MMPerBucketTip * sum))
 }
 
 func (r *rainmeter) GetAccumulation() mm {

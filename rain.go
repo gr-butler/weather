@@ -22,7 +22,7 @@ func (w *weatherstation) StartRainMonitor() {
 // once per hour on the overflow we calculate the min/max for that hour and save to their buffers
 func (w *weatherstation) readRainData() {
 	for range time.Tick(time.Minute) {
-		count := w.s.GetRainCount()
+		count := 0 //w.s.GetRainCount()
 
 		// add this to the rain minute buffer
 		rbuff := w.data.GetBuffer(RainBuffer)

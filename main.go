@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -139,13 +139,13 @@ func main() {
 	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
 	w := weatherstation{}
 	w.testMode = *testMode
-	w.s = &sensors.Sensors{}
-	err := w.s.InitSensors()
-	defer (*w.s.IIC.Bus).Close()
-	if err != nil {
-		logger.Errorf("Failed to initialise sensors: [%v]", err)
+
+	w.s = sensors.InitSensors()
+	if w.s != nil {
+		logger.Error("Failed to initialise sensors")
 		logger.Exit(1)
 	}
+	defer (*w.s.Closer).Close()
 
 	//setup heartbeat
 	heartbeatPin := gpioreg.ByName(constants.HeartbeatLed)
@@ -206,30 +206,30 @@ func (w *weatherstation) heartbeat() {
 }
 
 func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("Content-Type", "application/json")
-	pres, hum := w.s.GetHumidityAndPressure()
-	wd := webdata{
-		TempHiRes: float64(w.s.GetTemperature()),
-		Humidity:  float64(hum),
-		Pressure:  float64(pres),
-		//PressureHg: s.pressureInHg,
-		//RainHr:     s.getMMLastHour(),
-		//RainRate:     s.getHourlyRate(time.Now().Minute()),
-		//LastTip:      s.lastTip.Format(time.RFC822),
-		TimeNow: time.Now().Format(time.RFC822),
-		WindDir: w.s.GetWindDirection(),
-		// WindSpeed:    ,
-		// WindSpeedAvg: s.windSpeedAvg,
-	}
+	// rw.Header().Set("Content-Type", "application/json")
+	// pres, hum := w.s.GetHumidityAndPressure()
+	// wd := webdata{
+	// 	TempHiRes: float64(w.s.GetTemperature()),
+	// 	Humidity:  float64(hum),
+	// 	Pressure:  float64(pres),
+	// 	//PressureHg: s.pressureInHg,
+	// 	//RainHr:     s.getMMLastHour(),
+	// 	//RainRate:     s.getHourlyRate(time.Now().Minute()),
+	// 	//LastTip:      s.lastTip.Format(time.RFC822),
+	// 	TimeNow: time.Now().Format(time.RFC822),
+	// 	//WindDir: w.s.GetWindDirection(),
+	// 	// WindSpeed:    ,
+	// 	// WindSpeedAvg: s.windSpeedAvg,
+	// }
 
-	js, err := json.Marshal(wd)
-	if err != nil {
-		logger.Errorf("JSON error [%v]", err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// js, err := json.Marshal(wd)
+	// if err != nil {
+	// 	logger.Errorf("JSON error [%v]", err)
+	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
 
-	logger.Infof("Web read: \n[%v]", string(js))
-	//_, _ = rw.Write([]byte("<meta http-equiv=\"refresh\" content=\"5\">"))
-	_, _ = rw.Write(js) // not much we can do if this fails
+	// logger.Infof("Web read: \n[%v]", string(js))
+	// //_, _ = rw.Write([]byte("<meta http-equiv=\"refresh\" content=\"5\">"))
+	// _, _ = rw.Write(js) // not much we can do if this fails
 }

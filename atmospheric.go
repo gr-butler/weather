@@ -31,8 +31,8 @@ func (w *weatherstation) StartAtmosphericMonitor() {
 		if w.testMode {
 			logger.Info("Reading atmospheric data ...")
 		}
-		t := w.s.GetTemperature()
-		hPa, rh := w.s.GetHumidityAndPressure()
+		t := w.s.Atm.GetTemperature()
+		hPa, rh := w.s.Atm.GetHumidityAndPressure()
 		logger.Infof("Temperature [%3.2f], Pressure [%3.2f], Humidity [%3.2f]", t, hPa, rh)
 
 		w.data.GetBuffer(TempBuffer).AddItem(float64(t))

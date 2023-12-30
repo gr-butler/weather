@@ -66,9 +66,9 @@ func (w *weatherstation) StartWindMonitor() {
 
 func (w *weatherstation) recordWindSpeedData() {
 	for s := range time.Tick(time.Second) {
-		count := w.s.GetWindCount()
+		count := 0 //w.s.GetWindCount()
 		rawSpeed.AddItem(float64(count))
-		deg := w.s.GetWindDirection()
+		deg := 0.0 // w.s.GetWindDirection()
 		rawDirection.AddItem(deg)
 		w.calculateValues(s)
 	}
