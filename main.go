@@ -38,7 +38,7 @@ const (
 type weatherstation struct {
 	s            *sensors.Sensors
 	data         *data.WeatherData
-	dbq          *postgres.Queries
+	Db           *postgres.Queries
 	testMode     bool
 	HeartbeatLed *led.LED
 }
@@ -167,11 +167,9 @@ func main() {
 	}
 	defer db.Close()
 
-	w.dbq = postgres.New(db)
+	w.Db = postgres.New(db)
 
-	if !(*testMode) {
-		go w.MetofficeProcessor()
-	}
+	go w.Reporting(*testMode)
 
 	go w.heartbeat()
 

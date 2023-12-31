@@ -1,13 +1,15 @@
 package main
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
+
+	"github.com/google/go-querystring/query"
+	"github.com/pointer2null/weather/constants"
+	"github.com/pointer2null/weather/db/postgres"
 
 	logger "github.com/sirupsen/logrus"
 )
@@ -60,13 +62,32 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 
 */
 //PressureinHg = 29.92 * ( Pressurehpa / 1013.2) = 0.02953 * Pressurehpa
-const hPaToInHg = 0.02953
-const mmToInch = 25.4
-const reportFreqMin = 10
+
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
-// MetofficeProcessor called as a go routine will send data to the wow url every reportFreqMin mins
-func (w *weatherstation) MetofficeProcessor() {
+type weatherData struct {
+	SiteId       string `url:"siteid,omitempty"`
+	AuthKey      string `url:"siteAuthenticationKey,omitempty"`
+	DateString   string `url:"dateutc,omitempty"`
+	SoftwareType string `url:"softwaretype,omitempty"`
+	PressureHpa  float64
+	TempC        float64
+	RainMM       float64
+	PressureIn   float64 `url:"baromin,omitempty"`
+	Humidity     float64 `url:"humidity,omitempty"`
+	TempF        float64 `url:"tempf,omitempty"`
+	DewPointF    float64 `url:"dewptf,omitempty"`
+	RainIn       float64 `url:"rainin,omitempty"`
+	WindDir      float64 `url:"winddir,omitempty"`
+	WindSpeedMph float64 `url:"windspeedmph,omitempty"`
+	WindGustMph  float64 `url:"windcustmph,omitempty"`
+}
+
+// Reporting called as a go routine:
+// * send data to the wow url every reportFreqMin mins
+// * update grafana endpoints
+// * update db
+func (w *weatherstation) Reporting(testMode bool) {
 	/*
 	   Safety net for 'too many open files' issue on legacy code.
 	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
@@ -74,19 +95,29 @@ func (w *weatherstation) MetofficeProcessor() {
 	*/
 	http.DefaultClient.Timeout = time.Minute * 2
 	client := http.Client{Timeout: time.Second * 2}
-	for t := range time.Tick(time.Minute * reportFreqMin) {
+	for t := range time.Tick(time.Minute) {
 		func() {
-			logger.Info("Sending data to met office")
-			data, err := w.prepData(t.Minute())
-			if err != nil {
-				logger.Errorf("Failed to process data [%v]", err)
-				return
-			}
-			logger.Infof("Data: [%v]", data)
-			sendData, ok := os.LookupEnv("SENDWOWDATA")
-			if ok && sendData == "true" {
+			logger.Info("Recording data")
+			data := w.prepData()
+
+			// met office
+			if !testMode &&
+				(t.Minute()%constants.ReportFreqMin == 0) {
+				logger.Infof("Data: [%v]", data)
+				// write data to db
+				w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
+					Temperature:   data.TempC,
+					Pressure:      data.PressureHpa,
+					RainMm:        data.RainMM,
+					WindSpeed:     data.WindSpeedMph,
+					WindGust:      data.WindGustMph,
+					WindDirection: int32(data.WindDir),
+				})
+
+				logger.Info("Sending data to met office")
+				vals, _ := query.Values(data)
 				// Metoffice accepts a GET... which is easier so wtf
-				resp, err := client.Get(baseUrl + data.Encode())
+				resp, err := client.Get(baseUrl + vals.Encode())
 				if err != nil {
 					logger.Errorf("Failed to POST data [%v]", err)
 					return
@@ -95,50 +126,58 @@ func (w *weatherstation) MetofficeProcessor() {
 				if resp.StatusCode != 200 {
 					logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
 				}
-			} else {
-				logger.Warn("SENDWOWDATA is false.")
 			}
 		}()
 	}
 }
 
 // build the map with the required data
-func (w *weatherstation) prepData(min int) (url.Values, error) {
-	wowData := url.Values{}
+func (w *weatherstation) prepData() *weatherData {
+	wd := weatherData{}
 
 	wowsiteid, idok := os.LookupEnv("WOWSITEID")
 	wowpin, pinok := os.LookupEnv("WOWPIN")
 
 	if !(idok && pinok) {
 		logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-		return nil, errors.New("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
 	}
 
 	// user info
-	wowData.Add("siteid", wowsiteid)
-	wowData.Add("siteAuthenticationKey", wowpin)
+	wd.SiteId = wowsiteid
+	wd.AuthKey = wowpin
 
 	// Timestamp
 	// go magic date is Mon Jan 2 15:04:05 MST 2006
 	// "The date must be in the following format: YYYY-mm-DD HH:mm:ss"
-	wowData.Add("dateutc", time.Now().UTC().Format("2006-01-02+15:04:05"))
+	wd.DateString = time.Now().UTC().Format("2006-01-02+15:04:05")
 	// system info
-	wowData.Add("softwaretype", version)
+	wd.SoftwareType = version
 
 	tempC := w.s.Atm.GetTemperature().Float64()
+	wd.TempC = tempC
 	tempf := ctof(tempC)
 
-	p, humidity := w.s.Atm.GetHumidityAndPressure()
-	pressureInHg := p * hPaToInHg
+	Prom_temperature.Set(float64(tempC))
+
+	pressure, humidity := w.s.Atm.GetHumidityAndPressure()
+
+	Prom_humidity.Set(humidity.Float64())
+
+	pressureInHg := pressure * constants.HPaToInHg
 
 	rainInch := mmToIn(w.s.Rain.GetAccumulation().Float64())
 	w.s.Rain.ResetAccumulation()
 
 	windDirection := w.s.Wind.GetDirection()
+	Prom_windDirection.Set(windDirection)
 
 	windSpeed := w.s.Wind.GetSpeed()
 	windGust := w.s.Wind.GetDirection()
 
+	Prom_windspeed.Set(windSpeed)
+	Prom_windgust.Set(windGust)
+
+	// rain day total would need to be added or calculated from db entries
 	//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
 
 	// data
@@ -163,21 +202,21 @@ func (w *weatherstation) prepData(min int) (url.Values, error) {
 	*/
 
 	mslp := pressureInHg.Float64() * math.Exp(z0/H)
+	Prom_atmPresure.Set(mslp)
 
-	wowData.Add("baromin", fmt.Sprintf("%f", mslp))
-	wowData.Add("humidity", fmt.Sprintf("%0f", humidity))
+	wd.PressureIn = mslp
+	wd.Humidity = humidity.Float64()
+	wd.TempF = tempf
 
-	wowData.Add("tempf", fmt.Sprintf("%0f", tempf))
 	//Td = T - ((100 - RH)/5.)
 	dewPoint_f := ((((tempC + 273) - ((100 - (humidity.Float64())) / 5.0)) - 273) * 9 / 5.0) + 32
-	wowData.Add("dewptf", fmt.Sprintf("%0f", dewPoint_f))
+	wd.DewPointF = dewPoint_f
 
-	wowData.Add("rainin", fmt.Sprintf("%f", rainInch))
-	wowData.Add("winddir", fmt.Sprintf("%0.2f", windDirection))
-	wowData.Add("windspeedmph", fmt.Sprintf("%f", windSpeed))
-	wowData.Add("windgustmph", fmt.Sprintf("%f", windGust))
-	//wowData.Add("dailyrainin", fmt.Sprintf("%0.2f", rainDayInch))
-	return wowData, nil
+	wd.RainIn = rainInch
+	wd.WindDir = windDirection
+	wd.WindSpeedMph = windSpeed
+	wd.WindGustMph = windGust
+	return &wd
 }
 
 func ctof(c float64) float64 {
@@ -186,5 +225,5 @@ func ctof(c float64) float64 {
 }
 
 func mmToIn(mm float64) float64 {
-	return mm / mmToInch
+	return mm / constants.MmToInch
 }

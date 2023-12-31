@@ -39,4 +39,8 @@ const (
 
 	MphPerTick     = 1.429
 	MMPerBucketTip = 0.2794
+
+	HPaToInHg     = 0.02953
+	MmToInch      = 25.4
+	ReportFreqMin = 10
 )
