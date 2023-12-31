@@ -1,7 +1,7 @@
 -- +migrate up
 
 CREATE TABLE weather (
-    record_date TIMESTAMP without timezone PRIMARY KEY,
+    record_date TIMESTAMP without time zone PRIMARY KEY,
     temperature FLOAT NOT NULL,
     pressure FLOAT NOT NULL,
     rain_mm FLOAT NOT NULL,

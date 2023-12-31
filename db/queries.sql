@@ -1,7 +1,7 @@
 -- name: GetAllRecords :many
 SELECT * from weather;
 
--- name: WriteRecord :one
+-- name: WriteRecord :exec
 INSERT INTO weather (
     record_date,
     temperature,
