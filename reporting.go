@@ -111,7 +111,7 @@ func (w *weatherstation) Reporting(testMode bool) {
 					RainMm:        data.RainMM,
 					WindSpeed:     data.WindSpeedMph,
 					WindGust:      data.WindGustMph,
-					WindDirection: int32(data.WindDir),
+					WindDirection: data.WindDir,
 				})
 
 				logger.Info("Sending data to met office")
