@@ -63,7 +63,7 @@ func NewAnemometer(bus *i2c.Bus, testmode bool) *anemometer {
 	a.speedBuf = buffer.NewBuffer(480)
 	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
 	a.gustBuf = buffer.NewBuffer(2400)
-	a.dirBuf = buffer.NewBuffer(480)
+	a.dirBuf = buffer.NewBuffer(1200)
 	a.monitorWindGPIO()
 
 	return a
@@ -112,7 +112,7 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 	data, s, _ := a.gustBuf.GetRawData()
 	size := int(s)
 	// make an array for the 3 second rolling average
-	threeSecMaxAvg := 0.0
+	threeSecMax := 0.0
 	x := 0.0
 
 	for i := 0; i < size; i++ {
@@ -132,13 +132,13 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 			data[getRolledIndex(i+12, size)] +
 			data[getRolledIndex(i+13, size)] +
 			data[getRolledIndex(i+14, size)] +
-			data[getRolledIndex(i+15, size)]) / 3
-		if x > threeSecMaxAvg {
-			threeSecMaxAvg = x
+			data[getRolledIndex(i+15, size)])
+		if x > threeSecMax {
+			threeSecMax = x
 		}
 	}
 
-	return threeSecMaxAvg * constants.MphPerTick
+	return (threeSecMax / 3) * constants.MphPerTick
 }
 
 func getRolledIndex(x int, size int) int {

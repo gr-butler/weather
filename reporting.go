@@ -93,8 +93,7 @@ func (w *weatherstation) Reporting(testMode bool) {
 	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
 	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
 	*/
-	http.DefaultClient.Timeout = time.Minute * 2
-	client := http.Client{Timeout: time.Second * 2}
+
 	for t := range time.Tick(time.Minute) {
 		func() {
 			logger.Info("Recording data")
@@ -118,6 +117,7 @@ func (w *weatherstation) Reporting(testMode bool) {
 			if !testMode &&
 				(t.Minute()%constants.ReportFreqMin == 0) {
 				// write data to db
+				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
 					Temperature:   data.TempC,
 					Pressure:      data.PressureHpa,
@@ -133,9 +133,11 @@ func (w *weatherstation) Reporting(testMode bool) {
 				logger.Info("Sending data to met office")
 
 				// Metoffice accepts a GET... which is easier so wtf
+				http.DefaultClient.Timeout = time.Minute * 2
+				client := http.Client{Timeout: time.Second * 30}
 				resp, err := client.Get(baseUrl + vals.Encode())
 				if err != nil {
-					logger.Errorf("Failed to POST data [%v]", err)
+					logger.Errorf("Failed to POST data [%v] \n [%v]", err, vals.Encode())
 					return
 				}
 				defer resp.Body.Close()
@@ -208,7 +210,7 @@ func (w *weatherstation) prepData() *weatherData {
 	*/
 
 	mslp := pressureInHg.Float64() * math.Exp(z0/H)
-	Prom_atmPresure.Set(mslp)
+	Prom_atmPresure.Set(pressureInHg.Float64())
 
 	wd.PressureIn = mslp
 	wd.Humidity = humidity.Float64()
