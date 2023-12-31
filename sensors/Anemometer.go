@@ -14,16 +14,19 @@ import (
 )
 
 type anemometer struct {
-	gpioPin  *gpio.PinIO
-	dirADC   *ads1x15.PinADC
-	Bus      *i2c.Bus
-	speedBuf *buffer.SampleBuffer
-	gustBuf  *buffer.SampleBuffer
-	dirBuf   *buffer.SampleBuffer
+	gpioPin    *gpio.PinIO
+	dirADC     *ads1x15.PinADC
+	Bus        *i2c.Bus
+	speedBuf   *buffer.SampleBuffer
+	gustBuf    *buffer.SampleBuffer
+	dirBuf     *buffer.SampleBuffer
+	test       bool
+	pulseCount int
 }
 
-func NewAnemometer(bus *i2c.Bus) *anemometer {
+func NewAnemometer(bus *i2c.Bus, testmode bool) *anemometer {
 	a := &anemometer{}
+	a.test = testmode
 	a.Bus = bus
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName(constants.WindSensorIn)
@@ -61,28 +64,34 @@ func NewAnemometer(bus *i2c.Bus) *anemometer {
 	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
 	a.gustBuf = buffer.NewBuffer(2400)
 	a.dirBuf = buffer.NewBuffer(480)
-	go a.monitorWindGPIO()
+	a.monitorWindGPIO()
 
 	return a
 }
 
 func (a *anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
-	defer func() { _ = (*a.gpioPin).Halt() }()
-	pulseCount := 0
+
 	// count any pulses
 	go func() {
+		defer func() { _ = (*a.gpioPin).Halt() }()
 		for {
 			(*a.gpioPin).WaitForEdge(-1)
-			pulseCount += 1
+			a.pulseCount += 1
 		}
 	}()
-	// record the count every 250ms
-	for range time.Tick(time.Millisecond * 250) {
-		a.speedBuf.AddItem(float64(pulseCount))
-		pulseCount = 0
-		a.dirBuf.AddItem(a.readDirection())
-	}
+	go func() {
+		// record the count every 250ms
+		for range time.Tick(time.Millisecond * 250) {
+			a.speedBuf.AddItem(float64(a.pulseCount))
+			a.gustBuf.AddItem(float64(a.pulseCount))
+			a.dirBuf.AddItem(a.readDirection())
+			if a.test {
+				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(a.pulseCount*4.0) * constants.MphPerTick), a.pulseCount)
+			}
+			a.pulseCount = 0
+		}
+	}()
 }
 
 // https://www.metoffice.gov.uk/weather/guides/observations/how-we-measure-wind
@@ -92,26 +101,44 @@ func (a *anemometer) monitorWindGPIO() {
 
 func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
 	// the buffer contains pulse counts.
-	avg, _, _, _ := a.speedBuf.GetAverageMinMaxSum()
-	return constants.MphPerTick * float64(avg)
+	_, _, _, sum := a.speedBuf.GetAverageMinMaxSum()
+	// sum is the total pulse count for 2 mins
+	ticksPerSec := sum / (2 * 60)
+	// so the avg speed for the last 2 mins is...
+	return constants.MphPerTick * float64(ticksPerSec)
 }
 
 func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
 	data, s, _ := a.gustBuf.GetRawData()
 	size := int(s)
 	// make an array for the 3 second rolling average
-	avg := 0.0
+	threeSecMaxAvg := 0.0
 	x := 0.0
 
 	for i := 0; i < size; i++ {
+		// 4 samples per second...
 		x = (data[getRolledIndex(i, size)] +
 			data[getRolledIndex(i+1, size)] +
-			data[getRolledIndex(i+2, size)]) / 3
-		if x > avg {
-			avg = x
+			data[getRolledIndex(i+2, size)] +
+			data[getRolledIndex(i+3, size)] +
+			data[getRolledIndex(i+4, size)] +
+			data[getRolledIndex(i+5, size)] +
+			data[getRolledIndex(i+6, size)] +
+			data[getRolledIndex(i+7, size)] +
+			data[getRolledIndex(i+8, size)] +
+			data[getRolledIndex(i+9, size)] +
+			data[getRolledIndex(i+10, size)] +
+			data[getRolledIndex(i+11, size)] +
+			data[getRolledIndex(i+12, size)] +
+			data[getRolledIndex(i+13, size)] +
+			data[getRolledIndex(i+14, size)] +
+			data[getRolledIndex(i+15, size)]) / 3
+		if x > threeSecMaxAvg {
+			threeSecMaxAvg = x
 		}
 	}
-	return avg
+
+	return threeSecMaxAvg * constants.MphPerTick
 }
 
 func getRolledIndex(x int, size int) int {
@@ -123,7 +150,7 @@ func getRolledIndex(x int, size int) int {
 
 func (a *anemometer) GetDirection() float64 {
 	avg, _, _, _ := a.dirBuf.GetAverageMinMaxSum()
-	return voltToDegrees(float64(avg))
+	return float64(avg)
 }
 
 func (a *anemometer) readDirection() float64 {

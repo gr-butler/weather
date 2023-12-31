@@ -70,7 +70,7 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 
 	// every 10 seconds for last hour = 3600 / 10 = 360
 	r.tipBuf = buffer.NewBuffer(360)
-	go r.monitorRainGPIO()
+	r.monitorRainGPIO()
 	return r
 }
 
@@ -94,9 +94,9 @@ func (r *rainmeter) ResetAccumulation() {
 
 func (r *rainmeter) monitorRainGPIO() {
 	logger.Info("Starting tip bucket monitor")
-	defer func() { _ = (*r.gpioPin).Halt() }()
 	rainTip := 0
 	go func() {
+		defer func() { _ = (*r.gpioPin).Halt() }()
 		for {
 			(*r.gpioPin).WaitForEdge(-1)
 			if (*r.gpioPin).Read() == gpio.Low {
@@ -107,9 +107,11 @@ func (r *rainmeter) monitorRainGPIO() {
 			}
 		}
 	}()
-	// record the count every ten seconds
-	for range time.Tick(time.Second * 10) {
-		r.tipBuf.AddItem(float64(rainTip))
-		rainTip = 0
-	}
+	go func() {
+		// record the count every ten seconds
+		for range time.Tick(time.Second * 10) {
+			r.tipBuf.AddItem(float64(rainTip))
+			rainTip = 0
+		}
+	}()
 }

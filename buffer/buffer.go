@@ -21,10 +21,12 @@ type SampleBuffer struct {
 	autoMin     *SampleBuffer
 	autoMax     *SampleBuffer
 	autoSum     *SampleBuffer
+	first       bool
 }
 
 func NewBuffer(size int) *SampleBuffer {
 	b := SampleBuffer{}
+	b.first = true
 
 	b.size = size
 	b.data = make([]float64, size)
@@ -80,6 +82,12 @@ func (b *SampleBuffer) addItemNoLock(val float64) {
 	if b.position == b.size {
 		b.position = 0
 		b.checkAutoFill()
+	}
+	if b.first {
+		// fill buffer
+		for i := 0; i < b.size; i++ {
+			b.data[i] = val
+		}
 	}
 }
 

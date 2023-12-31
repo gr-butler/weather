@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"database/sql"
@@ -127,6 +126,7 @@ func init() {
 
 func main() {
 	logger.Infof("Starting weather station [%v]", version)
+	w := weatherstation{}
 
 	testMode := flag.Bool("test", false, "test mode, does not send met office data")
 	flag.Parse()
@@ -135,12 +135,25 @@ func main() {
 		logger.Info("TEST MODE")
 	}
 
-	logger.Infof("%v: Initialize sensors...", time.Now().Format(time.RFC822))
-	w := weatherstation{}
+	// connect to database
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		logger.Errorf("Failed to initialise database: [%v]", err)
+		logger.Exit(1)
+	}
+	defer db.Close()
+
+	logger.Info("Successfully connected to db.")
+
+	w.Db = postgres.New(db)
+
+	logger.Info("Initializing sensors...")
 	w.testMode = *testMode
 
-	w.s = sensors.InitSensors()
-	if w.s != nil {
+	w.s = sensors.InitSensors(*testMode)
+	if w.s == nil {
 		logger.Error("Failed to initialise sensors")
 		logger.Exit(1)
 	}
@@ -157,40 +170,22 @@ func main() {
 
 	w.data = data.CreateWeatherData()
 
-	//connect to database
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
-
-	db, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		logger.Errorf("Failed to initialise database: [%v]", err)
-		logger.Exit(1)
-	}
-	defer db.Close()
-
-	w.Db = postgres.New(db)
-
 	go w.Reporting(*testMode)
 
 	go w.heartbeat()
 
 	// start web service
+	logger.Info("Starting webservice...")
 	http.HandleFunc("/", w.handler)
-	sendData, ok := os.LookupEnv("SENDPROMDATA")
-	if ok && sendData == "true" && !(*testMode) {
-		logger.Info("Starting webservice...")
-		http.Handle("/metrics", promhttp.Handler())
-		logger.Fatal(http.ListenAndServe(":80", nil))
-	} else {
-		logger.Fatal(http.ListenAndServe(":80", nil))
-		logger.Info("Exiting")
-	}
+	http.Handle("/metrics", promhttp.Handler())
+
+	logger.Fatal(http.ListenAndServe(":80", nil))
 	defer logger.Info("Exiting...")
 }
 
 func (w *weatherstation) heartbeat() {
 	logger.Info("Heartbeat started")
 	for {
-		logger.Info("Sending heartbeat")
 		w.HeartbeatLed.Flash()
 		time.Sleep(time.Second * 30)
 	}
@@ -208,6 +203,7 @@ func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 		TimeNow:   time.Now().Format(time.RFC822),
 		WindDir:   w.s.Wind.GetDirection(),
 		WindSpeed: w.s.Wind.GetSpeed(),
+		WindGust:  w.s.Wind.GetGust(),
 	}
 
 	js, err := json.Marshal(wd)

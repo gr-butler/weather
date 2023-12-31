@@ -80,7 +80,7 @@ type weatherData struct {
 	RainIn       float64 `url:"rainin,omitempty"`
 	WindDir      float64 `url:"winddir,omitempty"`
 	WindSpeedMph float64 `url:"windspeedmph,omitempty"`
-	WindGustMph  float64 `url:"windcustmph,omitempty"`
+	WindGustMph  float64 `url:"windgustmph,omitempty"`
 }
 
 // Reporting called as a go routine:
@@ -100,12 +100,25 @@ func (w *weatherstation) Reporting(testMode bool) {
 			logger.Info("Recording data")
 			data := w.prepData()
 
+			wowsiteid, idok := os.LookupEnv("WOWSITEID")
+			wowpin, pinok := os.LookupEnv("WOWPIN")
+
+			if !(idok && pinok) {
+				logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
+			}
+
+			// user info
+			data.SiteId = wowsiteid
+			data.AuthKey = wowpin
+
+			vals, _ := query.Values(data)
+			logger.Infof("Data: [%v]", vals)
+
 			// met office
 			if !testMode &&
 				(t.Minute()%constants.ReportFreqMin == 0) {
-				logger.Infof("Data: [%v]", data)
 				// write data to db
-				w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
+				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
 					Temperature:   data.TempC,
 					Pressure:      data.PressureHpa,
 					RainMm:        data.RainMM,
@@ -113,9 +126,12 @@ func (w *weatherstation) Reporting(testMode bool) {
 					WindGust:      data.WindGustMph,
 					WindDirection: data.WindDir,
 				})
+				if err != nil {
+					logger.Errorf("Failed to write to db [%v]", err)
+				}
 
 				logger.Info("Sending data to met office")
-				vals, _ := query.Values(data)
+
 				// Metoffice accepts a GET... which is easier so wtf
 				resp, err := client.Get(baseUrl + vals.Encode())
 				if err != nil {
@@ -135,17 +151,6 @@ func (w *weatherstation) Reporting(testMode bool) {
 func (w *weatherstation) prepData() *weatherData {
 	wd := weatherData{}
 
-	wowsiteid, idok := os.LookupEnv("WOWSITEID")
-	wowpin, pinok := os.LookupEnv("WOWPIN")
-
-	if !(idok && pinok) {
-		logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-	}
-
-	// user info
-	wd.SiteId = wowsiteid
-	wd.AuthKey = wowpin
-
 	// Timestamp
 	// go magic date is Mon Jan 2 15:04:05 MST 2006
 	// "The date must be in the following format: YYYY-mm-DD HH:mm:ss"
@@ -160,6 +165,7 @@ func (w *weatherstation) prepData() *weatherData {
 	Prom_temperature.Set(float64(tempC))
 
 	pressure, humidity := w.s.Atm.GetHumidityAndPressure()
+	wd.PressureHpa = pressure.Float64()
 
 	Prom_humidity.Set(humidity.Float64())
 
@@ -172,7 +178,7 @@ func (w *weatherstation) prepData() *weatherData {
 	Prom_windDirection.Set(windDirection)
 
 	windSpeed := w.s.Wind.GetSpeed()
-	windGust := w.s.Wind.GetDirection()
+	windGust := w.s.Wind.GetGust()
 
 	Prom_windspeed.Set(windSpeed)
 	Prom_windgust.Set(windGust)
