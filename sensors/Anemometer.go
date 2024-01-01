@@ -20,13 +20,13 @@ type anemometer struct {
 	speedBuf   *buffer.SampleBuffer
 	gustBuf    *buffer.SampleBuffer
 	dirBuf     *buffer.SampleBuffer
-	test       bool
+	verbose    bool
 	pulseCount int
 }
 
-func NewAnemometer(bus *i2c.Bus, testmode bool) *anemometer {
+func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	a := &anemometer{}
-	a.test = testmode
+	a.verbose = verbose
 	a.Bus = bus
 	// Lookup a windpin by its number:
 	windpin := gpioreg.ByName(constants.WindSensorIn)
@@ -86,7 +86,7 @@ func (a *anemometer) monitorWindGPIO() {
 			a.speedBuf.AddItem(float64(a.pulseCount))
 			a.gustBuf.AddItem(float64(a.pulseCount))
 			a.dirBuf.AddItem(a.readDirection())
-			if a.test {
+			if a.verbose {
 				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(a.pulseCount*4.0) * constants.MphPerTick), a.pulseCount)
 			}
 			a.pulseCount = 0

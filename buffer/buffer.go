@@ -88,6 +88,7 @@ func (b *SampleBuffer) addItemNoLock(val float64) {
 		for i := 0; i < b.size; i++ {
 			b.data[i] = val
 		}
+		b.first = false
 	}
 }
 

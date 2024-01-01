@@ -129,6 +129,7 @@ func main() {
 	w := weatherstation{}
 
 	testMode := flag.Bool("test", false, "test mode, does not send met office data")
+	verbose := flag.Bool("v", false, "verbose loggin")
 	flag.Parse()
 
 	if *testMode {
@@ -152,7 +153,7 @@ func main() {
 	logger.Info("Initializing sensors...")
 	w.testMode = *testMode
 
-	w.s = sensors.InitSensors(*testMode)
+	w.s = sensors.InitSensors(*testMode, *verbose)
 	if w.s == nil {
 		logger.Error("Failed to initialise sensors")
 		logger.Exit(1)

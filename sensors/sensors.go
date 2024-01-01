@@ -16,7 +16,7 @@ type Sensors struct {
 	Closer *i2c.BusCloser
 }
 
-func InitSensors(testmode bool) *Sensors {
+func InitSensors(testmode bool, verbose bool) *Sensors {
 	s := &Sensors{}
 
 	if _, err := host.Init(); err != nil {
@@ -37,7 +37,7 @@ func InitSensors(testmode bool) *Sensors {
 
 	s.Atm = NewAtmosphere(&bus, testmode)
 	s.Rain = NewRainmeter(&bus)
-	s.Wind = NewAnemometer(&bus, testmode)
+	s.Wind = NewAnemometer(&bus, verbose)
 
 	return s
 }

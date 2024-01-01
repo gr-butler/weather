@@ -210,7 +210,7 @@ func (w *weatherstation) prepData() *weatherData {
 	*/
 
 	mslp := pressureInHg.Float64() * math.Exp(z0/H)
-	Prom_atmPresure.Set(pressureInHg.Float64())
+	Prom_atmPresure.Set(pressure.Float64())
 
 	wd.PressureIn = mslp
 	wd.Humidity = humidity.Float64()
