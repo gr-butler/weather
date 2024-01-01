@@ -68,7 +68,7 @@ func (l *LED) Flash() {
 	}
 	defer l.lock.Unlock()
 	// if the LED is currently off, then flash on
-	if l.on {
+	if !l.on {
 		_ = (*l.gpioPin).Out(gpio.High)
 		time.Sleep(time.Millisecond * 100)
 		_ = (*l.gpioPin).Out(gpio.Low)
