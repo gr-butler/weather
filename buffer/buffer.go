@@ -13,15 +13,11 @@ type Size int
 type Position int
 
 type SampleBuffer struct {
-	position    int
-	size        int
-	data        []float64
-	lock        sync.Mutex
-	autoAverage *SampleBuffer
-	autoMin     *SampleBuffer
-	autoMax     *SampleBuffer
-	autoSum     *SampleBuffer
-	first       bool
+	position int
+	size     int
+	data     []float64
+	lock     sync.Mutex
+	first    bool
 }
 
 func NewBuffer(size int) *SampleBuffer {
@@ -30,44 +26,8 @@ func NewBuffer(size int) *SampleBuffer {
 
 	b.size = size
 	b.data = make([]float64, size)
-	b.autoAverage = nil
-	b.autoMin = nil
-	b.autoMax = nil
-	b.autoSum = nil
 
 	return &b
-}
-
-func (b *SampleBuffer) SetAutoAverage(buf *SampleBuffer) {
-	b.autoAverage = buf
-}
-
-func (b *SampleBuffer) SetAutoMinimum(buf *SampleBuffer) {
-	b.autoMin = buf
-}
-
-func (b *SampleBuffer) SetAutoMaximum(buf *SampleBuffer) {
-	b.autoMax = buf
-}
-
-func (b *SampleBuffer) SetAutoSum(buf *SampleBuffer) {
-	b.autoSum = buf
-}
-
-func (b *SampleBuffer) GetAutoAverage() *SampleBuffer {
-	return b.autoAverage
-}
-
-func (b *SampleBuffer) GetAutoMinimum() *SampleBuffer {
-	return b.autoMin
-}
-
-func (b *SampleBuffer) GetAutoMaximum() *SampleBuffer {
-	return b.autoMax
-}
-
-func (b *SampleBuffer) GetAutoSum() *SampleBuffer {
-	return b.autoSum
 }
 
 func (b *SampleBuffer) AddItem(val float64) {
@@ -81,7 +41,7 @@ func (b *SampleBuffer) addItemNoLock(val float64) {
 	b.position += 1
 	if b.position == b.size {
 		b.position = 0
-		b.checkAutoFill()
+		// b.checkAutoFill()
 	}
 	if b.first {
 		// fill buffer
@@ -89,22 +49,6 @@ func (b *SampleBuffer) addItemNoLock(val float64) {
 			b.data[i] = val
 		}
 		b.first = false
-	}
-}
-
-func (b *SampleBuffer) checkAutoFill() {
-	a, mn, mx, sm := b.getAverageMinMaxSum()
-	if b.autoAverage != nil {
-		b.autoAverage.addItemNoLock(float64(a))
-	}
-	if b.autoMin != nil {
-		b.autoMin.addItemNoLock(float64(mn))
-	}
-	if b.autoMax != nil {
-		b.autoMax.addItemNoLock(float64(mx))
-	}
-	if b.autoSum != nil {
-		b.autoSum.addItemNoLock(float64(sm))
 	}
 }
 
