@@ -158,3 +158,11 @@ func (b *SampleBuffer) GetRawData() ([]float64, Size, Position) {
 func (b *SampleBuffer) GetSize() int {
 	return b.size
 }
+
+func (b *SampleBuffer) GetLast() float64 {
+	index := b.position - 1
+	if index < 0 {
+		index += b.size
+	}
+	return b.data[index]
+}

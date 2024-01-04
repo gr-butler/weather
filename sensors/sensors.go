@@ -6,6 +6,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
+	//"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/host"
 )
 
@@ -34,6 +35,7 @@ func InitSensors(testmode bool, verbose bool) *Sensors {
 	}
 	s.Closer = &closer
 	bus := i2c.Bus(closer)
+	//bus.SetSpeed(physic.KiloHertz)
 
 	s.Atm = NewAtmosphere(&bus, testmode)
 	s.Rain = NewRainmeter(&bus)

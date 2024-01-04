@@ -85,7 +85,12 @@ func (a *anemometer) monitorWindGPIO() {
 		for range time.Tick(time.Millisecond * 250) {
 			a.speedBuf.AddItem(float64(a.pulseCount))
 			a.gustBuf.AddItem(float64(a.pulseCount))
-			a.dirBuf.AddItem(a.readDirection())
+			if a.pulseCount < 1 {
+				// if we have no wind the dir is garbage
+				a.dirBuf.AddItem(a.dirBuf.GetLast())
+			} else {
+				a.dirBuf.AddItem(a.readDirection())
+			}
 			if a.verbose {
 				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(a.pulseCount*4.0) * constants.MphPerTick), a.pulseCount)
 			}
