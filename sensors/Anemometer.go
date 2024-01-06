@@ -62,9 +62,9 @@ func (a *anemometer) monitorWindGPIO() {
 
 	go func() {
 		// record the count every 250ms
+		write := []byte{0x00} // we don't need to send any command
+		read := make([]byte, 4)
 		for range time.Tick(time.Millisecond * 250) {
-			write := []byte{0x00}
-			read := make([]byte, 4)
 			if err := a.masthead.Tx(write, read); err != nil {
 				logger.Errorf("Failed to request count from masthead [%v]", err)
 			}
@@ -80,7 +80,6 @@ func (a *anemometer) monitorWindGPIO() {
 			if a.verbose {
 				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(pulseCount*4.0) * constants.MphPerTick), pulseCount)
 			}
-
 		}
 	}()
 }
