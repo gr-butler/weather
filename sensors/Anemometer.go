@@ -40,7 +40,7 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	}
 
 	// Obtain an analog pin from the ADC.
-	dirPin, err := adc.PinForChannel(ads1x15.Channel0, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
+	dirPin, err := adc.PinForChannel(ads1x15.Channel3, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logger.Error(err)
 		return nil
