@@ -24,7 +24,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-2.0.0"
+const version = "GRB-Weather-2.1.0"
 
 const (
 	host     = "192.168.1.212"

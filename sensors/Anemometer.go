@@ -1,47 +1,35 @@
 package sensors
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
 	"github.com/pointer2null/weather/constants"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/experimental/devices/ads1x15"
 )
 
 type anemometer struct {
-	gpioPin    *gpio.PinIO
-	dirADC     *ads1x15.PinADC
-	Bus        *i2c.Bus
-	speedBuf   *buffer.SampleBuffer
-	gustBuf    *buffer.SampleBuffer
-	dirBuf     *buffer.SampleBuffer
-	verbose    bool
-	pulseCount int
+	dirADC   *ads1x15.PinADC
+	Bus      *i2c.Bus
+	speedBuf *buffer.SampleBuffer
+	gustBuf  *buffer.SampleBuffer
+	dirBuf   *buffer.SampleBuffer
+	verbose  bool
+	masthead *i2c.Dev
 }
+
+const MastHead uint16 = 0x55
 
 func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	a := &anemometer{}
 	a.verbose = verbose
 	a.Bus = bus
-	// Lookup a windpin by its number:
-	windpin := gpioreg.ByName(constants.WindSensorIn)
-	if windpin == nil {
-		logger.Errorf("Failed to find %v - wind pin", constants.WindSensorIn)
-		return nil
-	}
 
-	logger.Infof("%s: %s", windpin, windpin.Function())
-
-	if err := windpin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
-		logger.Error(err)
-		return nil
-	}
-	a.gpioPin = &windpin
+	a.masthead = &i2c.Dev{Addr: MastHead, Bus: *bus}
 
 	logger.Info("Starting Wind direction ADC")
 	// Create a new ADS1115 ADC.
@@ -52,7 +40,7 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	}
 
 	// Obtain an analog pin from the ADC.
-	dirPin, err := adc.PinForChannel(ads1x15.Channel0, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
+	dirPin, err := adc.PinForChannel(ads1x15.Channel3, 5*physic.Volt, 1*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -72,29 +60,26 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 func (a *anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
-	// count any pulses
-	go func() {
-		defer func() { _ = (*a.gpioPin).Halt() }()
-		for {
-			(*a.gpioPin).WaitForEdge(-1)
-			a.pulseCount += 1
-		}
-	}()
 	go func() {
 		// record the count every 250ms
+		write := []byte{0x00} // we don't need to send any command
+		read := make([]byte, 4)
 		for range time.Tick(time.Millisecond * 250) {
-			a.speedBuf.AddItem(float64(a.pulseCount))
-			a.gustBuf.AddItem(float64(a.pulseCount))
-			if a.pulseCount < 1 {
+			if err := a.masthead.Tx(write, read); err != nil {
+				logger.Errorf("Failed to request count from masthead [%v]", err)
+			}
+			pulseCount := int(binary.LittleEndian.Uint32(read))
+			a.speedBuf.AddItem(float64(pulseCount))
+			a.gustBuf.AddItem(float64(pulseCount))
+			if pulseCount < 1 {
 				// if we have no wind the dir is garbage
 				a.dirBuf.AddItem(a.dirBuf.GetLast())
 			} else {
 				a.dirBuf.AddItem(a.readDirection())
 			}
 			if a.verbose {
-				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(a.pulseCount*4.0) * constants.MphPerTick), a.pulseCount)
+				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(pulseCount*4.0) * constants.MphPerTick), pulseCount)
 			}
-			a.pulseCount = 0
 		}
 	}()
 }
