@@ -6,7 +6,6 @@ import (
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
-	//"periph.io/x/periph/conn/physic"
 	"periph.io/x/periph/host"
 )
 
@@ -21,7 +20,7 @@ func InitSensors(testmode bool, verbose bool) *Sensors {
 	s := &Sensors{}
 
 	if _, err := host.Init(); err != nil {
-		logger.Errorf("Failed to init i2c bus [%v]", err)
+		logger.Fatalf("Failed to init i2c bus [%v]", err)
 		return nil
 	}
 	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
@@ -35,7 +34,7 @@ func InitSensors(testmode bool, verbose bool) *Sensors {
 	}
 	s.Closer = &closer
 	bus := i2c.Bus(closer)
-	//bus.SetSpeed(physic.KiloHertz)
+	//bus.SetSpeed(physic.KiloHertz) // just in case - we're pushing our luck with the IIC bus length
 
 	s.Atm = NewAtmosphere(&bus, testmode)
 	s.Rain = NewRainmeter(&bus)

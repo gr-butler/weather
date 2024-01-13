@@ -160,70 +160,77 @@ func (w *weatherstation) prepData() *weatherData {
 	// system info
 	wd.SoftwareType = version
 
-	tempC := w.s.Atm.GetTemperature().Float64()
-	wd.TempC = tempC
-	tempf := ctof(tempC)
+	if w.s.Atm != nil {
 
-	Prom_temperature.Set(float64(tempC))
+		tempC := w.s.Atm.GetTemperature().Float64()
+		wd.TempC = tempC
+		tempf := ctof(tempC)
 
-	pressure, humidity := w.s.Atm.GetHumidityAndPressure()
-	wd.PressureHpa = pressure.Float64()
+		Prom_temperature.Set(float64(tempC))
 
-	Prom_humidity.Set(humidity.Float64())
+		pressure, humidity := w.s.Atm.GetHumidityAndPressure()
+		wd.PressureHpa = pressure.Float64()
 
-	pressureInHg := pressure * constants.HPaToInHg
+		Prom_humidity.Set(humidity.Float64())
 
-	rainInch := mmToIn(w.s.Rain.GetAccumulation().Float64())
-	w.s.Rain.ResetAccumulation()
+		pressureInHg := pressure * constants.HPaToInHg
 
-	windDirection := w.s.Wind.GetDirection()
-	Prom_windDirection.Set(windDirection)
+		/*
+			3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
+		*/
 
-	windSpeed := w.s.Wind.GetSpeed()
-	windGust := w.s.Wind.GetGust()
+		tempK := tempC + kelvin
 
-	Prom_windspeed.Set(windSpeed)
-	Prom_windgust.Set(windGust)
+		/*
+			4. Compute the scale height H = RdT/g, where Rd = 287.1 J/(kg K) and g = 9.807 m/s2.
+			Be sure to record H to at least 4 significant figures.
+		*/
 
-	// rain day total would need to be added or calculated from db entries
-	//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
+		H := (Rd * tempK) / g
 
-	// data
-	/*
-		3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
-	*/
+		/*
+			5. Compute the sea level pressure psl from
+			psl = p0 exp(z0/H)
+			where p0 is the observed pressure and z0 is the altitude above sea level where you
+			made your pressure observation.
+		*/
 
-	tempK := tempC + kelvin
+		mslp := pressureInHg.Float64() * math.Exp(z0/H)
+		Prom_atmPresure.Set(pressure.Float64())
 
-	/*
-		4. Compute the scale height H = RdT/g, where Rd = 287.1 J/(kg K) and g = 9.807 m/s2.
-		Be sure to record H to at least 4 significant figures.
-	*/
+		wd.Humidity = humidity.Float64()
+		wd.TempF = tempf
+		//Td = T - ((100 - RH)/5.)
+		dewPoint_f := ((((tempC + 273) - ((100 - (humidity.Float64())) / 5.0)) - 273) * 9 / 5.0) + 32
+		wd.DewPointF = dewPoint_f
 
-	H := (Rd * tempK) / g
+		wd.PressureIn = mslp
+	}
 
-	/*
-		5. Compute the sea level pressure psl from
-		psl = p0 exp(z0/H)
-		where p0 is the observed pressure and z0 is the altitude above sea level where you
-		made your pressure observation.
-	*/
+	if w.s.Rain != nil {
 
-	mslp := pressureInHg.Float64() * math.Exp(z0/H)
-	Prom_atmPresure.Set(pressure.Float64())
+		rainInch := mmToIn(w.s.Rain.GetAccumulation().Float64())
+		w.s.Rain.ResetAccumulation()
+		wd.RainIn = rainInch
+		// rain day total would need to be added or calculated from db entries
+		//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
+	}
 
-	wd.PressureIn = mslp
-	wd.Humidity = humidity.Float64()
-	wd.TempF = tempf
+	if w.s.Wind != nil {
+		windDirection := w.s.Wind.GetDirection()
+		Prom_windDirection.Set(windDirection)
 
-	//Td = T - ((100 - RH)/5.)
-	dewPoint_f := ((((tempC + 273) - ((100 - (humidity.Float64())) / 5.0)) - 273) * 9 / 5.0) + 32
-	wd.DewPointF = dewPoint_f
+		windSpeed := w.s.Wind.GetSpeed()
+		windGust := w.s.Wind.GetGust()
 
-	wd.RainIn = rainInch
-	wd.WindDir = windDirection
-	wd.WindSpeedMph = windSpeed
-	wd.WindGustMph = windGust
+		Prom_windspeed.Set(windSpeed)
+		Prom_windgust.Set(windGust)
+
+		wd.WindDir = windDirection
+		wd.WindSpeedMph = windSpeed
+		wd.WindGustMph = windGust
+	}
+
 	return &wd
 }
 
