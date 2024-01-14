@@ -94,14 +94,18 @@ func (w *weatherstation) Reporting(testMode bool) {
 	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
 	*/
 
-	for t := range time.Tick(time.Minute) {
+	duration := time.Minute
+	if testMode {
+		duration = time.Second
+	}
+
+	for t := range time.Tick(duration) {
 		func() {
 			logger.Info("Recording data")
 			data := w.prepData()
 
 			wowsiteid, idok := os.LookupEnv("WOWSITEID")
 			wowpin, pinok := os.LookupEnv("WOWPIN")
-
 			if !(idok && pinok) {
 				logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
 			}
@@ -113,9 +117,16 @@ func (w *weatherstation) Reporting(testMode bool) {
 			vals, _ := query.Values(data)
 			logger.Infof("Data: [%v]", vals)
 
-			// met office
-			if !testMode &&
-				(t.Minute()%constants.ReportFreqMin == 0) {
+			if testMode {
+				// flash LED's
+				if w.HeartbeatLed.IsOn() {
+					w.HeartbeatLed.On()
+					w.s.Rain.GetLED().Off()
+				} else {
+					w.HeartbeatLed.Off()
+					w.s.Rain.GetLED().On()
+				}
+			} else if t.Minute()%constants.ReportFreqMin == 0 {
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{

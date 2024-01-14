@@ -96,3 +96,7 @@ func (l *LED) Flicker(pulses int) {
 		_ = (*l.gpioPin).Out(gpio.Low)
 	}
 }
+
+func (l *LED) IsOn() bool {
+	return l.on
+}

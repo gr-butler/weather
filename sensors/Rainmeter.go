@@ -115,3 +115,7 @@ func (r *rainmeter) monitorRainGPIO() {
 		}
 	}()
 }
+
+func (r *rainmeter) GetLED() *led.LED {
+	return r.ledOut
+}
