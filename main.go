@@ -10,8 +10,6 @@ import (
 	"database/sql"
 
 	_ "github.com/lib/pq"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
 
 	"github.com/pointer2null/weather/constants"
 	"github.com/pointer2null/weather/data"
@@ -161,13 +159,7 @@ func main() {
 	defer (*w.s.Closer).Close()
 
 	//setup heartbeat
-	heartbeatPin := gpioreg.ByName(constants.HeartbeatLed)
-	if heartbeatPin == nil {
-		logger.Errorf("Failed to find %v - heartbeat pin", constants.HeartbeatLed)
-		// failed heartbeat LED is not critical
-	}
-	_ = heartbeatPin.Out(gpio.Low)
-	w.HeartbeatLed = led.NewLED("Heartbeat LED", &heartbeatPin)
+	w.HeartbeatLed = led.NewLED("Heartbeat LED", constants.HeartbeatLed)
 
 	w.data = data.CreateWeatherData()
 

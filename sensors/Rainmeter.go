@@ -60,13 +60,7 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 	}
 	r.gpioPin = &rainpin
 
-	rainTipLed := gpioreg.ByName(constants.RainTipLed)
-	if rainTipLed == nil {
-		logger.Errorf("Failed to find %v - rain tip LED pin", constants.RainTipLed)
-		// failed raintip LED is not critical
-	}
-	_ = rainTipLed.Out(gpio.Low)
-	r.ledOut = led.NewLED("Rain Tip", &rainTipLed)
+	r.ledOut = led.NewLED("Rain Tip", constants.RainTipLed)
 
 	// every 10 seconds for last hour = 3600 / 10 = 360
 	r.tipBuf = buffer.NewBuffer(360)

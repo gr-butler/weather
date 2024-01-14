@@ -109,11 +109,11 @@ func (w *weatherstation) Reporting(testMode bool) {
 			if testMode {
 				// flash LED's
 				if w.HeartbeatLed.IsOn() {
-					w.HeartbeatLed.On()
-					w.s.Rain.GetLED().Off()
-				} else {
 					w.HeartbeatLed.Off()
 					w.s.Rain.GetLED().On()
+				} else {
+					w.HeartbeatLed.On()
+					w.s.Rain.GetLED().Off()
 				}
 			} else if t.Minute()%constants.ReportFreqMin == 0 {
 				wowsiteid, idok := os.LookupEnv("WOWSITEID")

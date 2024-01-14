@@ -34,8 +34,8 @@ const (
 	RainSensorIn = GPIO17
 	WindSensorIn = GPIO27
 
-	HeartbeatLed = GPIO23
-	RainTipLed   = GPIO24
+	HeartbeatLed = GPIO19
+	RainTipLed   = GPIO20
 
 	MphPerTick     = 1.429
 	MMPerBucketTip = 0.2794
