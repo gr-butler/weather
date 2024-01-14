@@ -173,7 +173,9 @@ func main() {
 
 	go w.Reporting(*testMode)
 
-	go w.heartbeat()
+	if !(*testMode) {
+		go w.heartbeat()
+	}
 
 	// start web service
 	logger.Info("Starting webservice...")

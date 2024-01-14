@@ -23,9 +23,8 @@ func InitSensors(testmode bool, verbose bool) *Sensors {
 		logger.Fatalf("Failed to init i2c bus [%v]", err)
 		return nil
 	}
-	i2cbus := flag.String("bus", "", "I²C bus (/dev/i2c-1)")
-
-	// Open default I²C bus.
+	i2cbus := flag.String("bus", "1", "I²C bus (/dev/i2c-1)")
+	logger.Infof("Opening I2C bus [%v]", i2cbus)
 	closer, err := i2creg.Open(*i2cbus)
 	if err != nil {
 		logger.Fatalf("failed to open I²C: %v", err)

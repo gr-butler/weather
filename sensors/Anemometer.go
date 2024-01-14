@@ -46,6 +46,11 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 		return nil
 	}
 	a.dirADC = &dirPin
+	// check connection
+	if err := a.masthead.Tx([]byte{0x00}, make([]byte, 4)); err != nil {
+		logger.Errorf("Masthead did not respond [%v]", err)
+		return nil
+	}
 
 	// 4 samples per sec, for 2 mins = 120 * 4 = 480
 	a.speedBuf = buffer.NewBuffer(480)

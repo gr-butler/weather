@@ -101,18 +101,7 @@ func (w *weatherstation) Reporting(testMode bool) {
 
 	for t := range time.Tick(duration) {
 		func() {
-			logger.Info("Recording data")
 			data := w.prepData()
-
-			wowsiteid, idok := os.LookupEnv("WOWSITEID")
-			wowpin, pinok := os.LookupEnv("WOWPIN")
-			if !(idok && pinok) {
-				logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-			}
-
-			// user info
-			data.SiteId = wowsiteid
-			data.AuthKey = wowpin
 
 			vals, _ := query.Values(data)
 			logger.Infof("Data: [%v]", vals)
@@ -127,6 +116,15 @@ func (w *weatherstation) Reporting(testMode bool) {
 					w.s.Rain.GetLED().On()
 				}
 			} else if t.Minute()%constants.ReportFreqMin == 0 {
+				wowsiteid, idok := os.LookupEnv("WOWSITEID")
+				wowpin, pinok := os.LookupEnv("WOWPIN")
+				if !(idok && pinok) {
+					logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
+				}
+
+				// user info
+				data.SiteId = wowsiteid
+				data.AuthKey = wowpin
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{

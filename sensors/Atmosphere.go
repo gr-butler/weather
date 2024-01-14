@@ -42,7 +42,7 @@ func NewAtmosphere(bus *i2c.Bus, testmode bool) *atmosphere {
 	// Create a new temperature sensor with hig res
 	tempSensor, err := mcp9808.New(*bus, &mcp9808.Opts{Addr: *temperatureAddr, Res: mcp9808.High})
 	if err != nil {
-		logger.Errorf("failed to open MCP9808 sensor: %v", err)
+		logger.Errorf("Failed to open MCP9808 sensor: %v", err)
 		return nil
 	}
 	a.Temp = tempSensor
