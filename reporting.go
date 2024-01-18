@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -101,12 +102,12 @@ func (w *weatherstation) Reporting(testMode bool) {
 
 	for t := range time.Tick(duration) {
 		func() {
-			data := w.prepData()
+			data, msg := w.prepData()
 
 			vals, _ := query.Values(data)
-			logger.Infof("Data: [%v]", vals)
 
 			if testMode {
+				logger.Infof("Sensor test: %v", msg)
 				// flash LED's
 				if w.HeartbeatLed.IsOn() {
 					w.HeartbeatLed.Off()
@@ -140,6 +141,7 @@ func (w *weatherstation) Reporting(testMode bool) {
 				}
 
 				logger.Info("Sending data to met office")
+				logger.Infof("Data: [%v]", vals)
 
 				// Metoffice accepts a GET... which is easier so wtf
 				http.DefaultClient.Timeout = time.Minute * 2
@@ -159,9 +161,9 @@ func (w *weatherstation) Reporting(testMode bool) {
 }
 
 // build the map with the required data
-func (w *weatherstation) prepData() *weatherData {
+func (w *weatherstation) prepData() (*weatherData, string) {
 	wd := weatherData{}
-
+	msg := ""
 	// Timestamp
 	// go magic date is Mon Jan 2 15:04:05 MST 2006
 	// "The date must be in the following format: YYYY-mm-DD HH:mm:ss"
@@ -214,15 +216,17 @@ func (w *weatherstation) prepData() *weatherData {
 		wd.DewPointF = dewPoint_f
 
 		wd.PressureIn = mslp
+		msg = fmt.Sprintf("Pressure [%2f], Humidity [%2f], Temperature [%2f]", pressure, humidity, tempC)
 	}
 
 	if w.s.Rain != nil {
-
-		rainInch := mmToIn(w.s.Rain.GetAccumulation().Float64())
+		acc := w.s.Rain.GetAccumulation().Float64()
+		rainInch := mmToIn(acc)
 		w.s.Rain.ResetAccumulation()
 		wd.RainIn = rainInch
 		// rain day total would need to be added or calculated from db entries
 		//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
+		msg = msg + fmt.Sprintf(", Rain [%v]", acc)
 	}
 
 	if w.s.Wind != nil {
@@ -238,9 +242,10 @@ func (w *weatherstation) prepData() *weatherData {
 		wd.WindDir = windDirection
 		wd.WindSpeedMph = windSpeed
 		wd.WindGustMph = windGust
+		msg = msg + fmt.Sprintf(", Dir [%2f], Speed [%v] Gust [%v]", windDirection, windSpeed, windGust)
 	}
 
-	return &wd
+	return &wd, msg
 }
 
 func ctof(c float64) float64 {

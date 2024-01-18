@@ -35,7 +35,7 @@ func InitSensors(testmode bool, verbose bool) *Sensors {
 	bus := i2c.Bus(closer)
 	//bus.SetSpeed(physic.KiloHertz) // just in case - we're pushing our luck with the IIC bus length
 
-	s.Atm = NewAtmosphere(&bus, testmode)
+	s.Atm = NewAtmosphere(&bus)
 	s.Rain = NewRainmeter(&bus)
 	s.Wind = NewAnemometer(&bus, verbose)
 

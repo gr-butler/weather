@@ -30,12 +30,10 @@ func (t TemperatureC) Float64() float64 {
 type atmosphere struct {
 	PH   *bmxx80.Dev  // BME280 Pressure & humidity
 	Temp *mcp9808.Dev // MCP9808 temperature sensor
-	test bool
 }
 
-func NewAtmosphere(bus *i2c.Bus, testmode bool) *atmosphere {
+func NewAtmosphere(bus *i2c.Bus) *atmosphere {
 	a := &atmosphere{}
-	a.test = testmode
 
 	temperatureAddr := flag.Int("address", 0x18, "I²C address")
 	logger.Info("Starting MCP9808 Temperature Sensor")
@@ -68,9 +66,7 @@ func (a *atmosphere) GetHumidityAndPressure() (PressurehPa, RelHumidity) {
 		// convert raw sensor output
 		humidity := RelHumidity(math.Round(float64(em.Humidity) / float64(physic.PercentRH)))
 		pressure := PressurehPa(math.Round((float64(em.Pressure)/float64(100*physic.Pascal))*100) / 100)
-		if a.test {
-			logger.Infof("Pressure [%2f], Humidity [%2f]", pressure.Float64(), humidity.Float64())
-		}
+
 		return pressure, humidity
 	}
 	return 0, 0
@@ -84,9 +80,7 @@ func (a *atmosphere) GetTemperature() TemperatureC {
 			return 0
 		}
 		temp := TemperatureC(hiT.Temperature.Celsius())
-		if a.test {
-			logger.Infof("Temperature [%2f]", temp)
-		}
+
 		return temp
 	}
 	return 0
