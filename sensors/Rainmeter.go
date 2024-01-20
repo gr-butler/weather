@@ -14,10 +14,11 @@ import (
 )
 
 type rainmeter struct {
-	gpioPin      *gpio.PinIO // Rain bucket tip pin
-	accumulation int64
-	ledOut       *led.LED
-	tipBuf       *buffer.SampleBuffer
+	gpioPin         *gpio.PinIO // Rain bucket tip pin
+	dayAccumulation int64
+	accumulation    int64
+	ledOut          *led.LED
+	tipBuf          *buffer.SampleBuffer
 }
 
 type mmHr float64
@@ -78,12 +79,19 @@ func (r *rainmeter) GetMinuteRate() mm {
 	return mm(int64(constants.MMPerBucketTip * sum))
 }
 
-func (r *rainmeter) GetAccumulation() mm {
-	return toMM(r.accumulation)
+func (r *rainmeter) GetDayAccumulation() mm {
+	return toMM(r.dayAccumulation)
 }
 
-func (r *rainmeter) ResetAccumulation() {
+func (r *rainmeter) ResetDayAccumulation() {
+	r.dayAccumulation = 0
+}
+
+// returns the accumulation since last called.
+func (r *rainmeter) GetAccumulation() mm {
+	a := r.accumulation
 	r.accumulation = 0
+	return toMM(a)
 }
 
 func (r *rainmeter) monitorRainGPIO() {
@@ -94,8 +102,9 @@ func (r *rainmeter) monitorRainGPIO() {
 		for {
 			(*r.gpioPin).WaitForEdge(-1)
 			if (*r.gpioPin).Read() == gpio.Low {
-				rainTip += 1
-				r.accumulation += 1
+				rainTip += 1           // for rates
+				r.dayAccumulation += 1 // for day
+				r.accumulation += 1    // for accumulations
 				logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
 				r.ledOut.Flash()
 			}

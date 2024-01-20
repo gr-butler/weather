@@ -74,6 +74,7 @@ type weatherData struct {
 	PressureHpa  float64
 	TempC        float64
 	RainMM       float64
+	RainDayIn    float64 `url:"dailyrainin,omitempty"`
 	PressureIn   float64 `url:"baromin,omitempty"`
 	Humidity     float64 `url:"humidity,omitempty"`
 	TempF        float64 `url:"tempf,omitempty"`
@@ -117,15 +118,6 @@ func (w *weatherstation) Reporting(testMode bool) {
 					w.s.Rain.GetLED().Off()
 				}
 			} else if t.Minute()%constants.ReportFreqMin == 0 {
-				wowsiteid, idok := os.LookupEnv("WOWSITEID")
-				wowpin, pinok := os.LookupEnv("WOWPIN")
-				if !(idok && pinok) {
-					logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-				}
-
-				// user info
-				data.SiteId = wowsiteid
-				data.AuthKey = wowpin
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
@@ -140,8 +132,22 @@ func (w *weatherstation) Reporting(testMode bool) {
 					logger.Errorf("Failed to write to db [%v]", err)
 				}
 
-				logger.Info("Sending data to met office")
-				logger.Infof("Data: [%v]", vals)
+				wowsiteid, idok := os.LookupEnv("WOWSITEID")
+				wowpin, pinok := os.LookupEnv("WOWPIN")
+				if !(idok && pinok) {
+					logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
+					return
+				}
+
+				logger.Infof("Sending data to met office [%v]", data)
+
+				// user info
+				data.SiteId = wowsiteid
+				data.AuthKey = wowpin
+
+				// get the rain accumulation since we last reported it
+				data.RainIn = mmToIn(w.s.Rain.GetAccumulation().Float64())
+				data.RainDayIn = mmToIn(w.s.Rain.GetDayAccumulation().Float64())
 
 				// Metoffice accepts a GET... which is easier so wtf
 				http.DefaultClient.Timeout = time.Minute * 2
@@ -154,6 +160,12 @@ func (w *weatherstation) Reporting(testMode bool) {
 				defer resp.Body.Close()
 				if resp.StatusCode != 200 {
 					logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
+				}
+
+				if t.Minute() == 0 && t.Hour() == 9 {
+					// reset daily rain accumulation
+					w.s.Rain.ResetDayAccumulation()
+					Prom_rainDayTotal.Set(0)
 				}
 			}
 		}()
@@ -220,13 +232,13 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 	}
 
 	if w.s.Rain != nil {
-		acc := w.s.Rain.GetAccumulation().Float64()
+		// we have to work out the values we send to the met office when we send it as they
+		// what amount since last sent
+		acc := w.s.Rain.GetDayAccumulation().Float64()
 		rainInch := mmToIn(acc)
-		w.s.Rain.ResetAccumulation()
-		wd.RainIn = rainInch
-		// rain day total would need to be added or calculated from db entries
-		//rainDayInch := mmToIn(float64(s) * constants.MMPerBucketTip)
-		msg = msg + fmt.Sprintf(", Rain [%v]", acc)
+		Prom_rainDayTotal.Set(rainInch)
+		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
+		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
 	}
 
 	if w.s.Wind != nil {
