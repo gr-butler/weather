@@ -61,8 +61,8 @@ var Prom_atmPresure = prometheus.NewGauge(
 
 var Prom_rainRatePerMin = prometheus.NewGauge(
 	prometheus.GaugeOpts{
-		Name: "rain_hour_rate",
-		Help: "The rain rate based on the last 5 minuntes",
+		Name: "rain_min_rate",
+		Help: "The rain rate based on the last 1 minuntes",
 	},
 )
 
