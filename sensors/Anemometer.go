@@ -29,9 +29,10 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	a.verbose = verbose
 	a.Bus = bus
 
+	logger.Infof("Starting Masthead I2C [%x]", MastHead)
 	a.masthead = &i2c.Dev{Addr: MastHead, Bus: *bus}
 
-	logger.Info("Starting Wind direction ADC")
+	logger.Infof("Starting Wind direction ADC I2C [%x]", ads1x15.DefaultOpts.I2cAddress)
 	// Create a new ADS1115 ADC.
 	adc, err := ads1x15.NewADS1115(*a.Bus, &ads1x15.DefaultOpts)
 	if err != nil {

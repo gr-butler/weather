@@ -11,6 +11,11 @@ import (
 	"periph.io/x/periph/experimental/devices/mcp9808"
 )
 
+const (
+	MCP9808_I2C = 0x18
+	BMP280_I2C  = 0x76
+)
+
 type PressurehPa float64
 type RelHumidity float64
 type TemperatureC float64
@@ -35,8 +40,8 @@ type atmosphere struct {
 func NewAtmosphere(bus *i2c.Bus) *atmosphere {
 	a := &atmosphere{}
 
-	temperatureAddr := flag.Int("address", 0x18, "I²C address")
-	logger.Info("Starting MCP9808 Temperature Sensor")
+	temperatureAddr := flag.Int("address", MCP9808_I2C, "I²C address")
+	logger.Infof("Starting MCP9808 Temperature Sensor [%x]", MCP9808_I2C)
 	// Create a new temperature sensor with hig res
 	tempSensor, err := mcp9808.New(*bus, &mcp9808.Opts{Addr: *temperatureAddr, Res: mcp9808.High})
 	if err != nil {
@@ -45,8 +50,8 @@ func NewAtmosphere(bus *i2c.Bus) *atmosphere {
 	}
 	a.Temp = tempSensor
 
-	logger.Info("Starting BMP280 reader...")
-	bme, err := bmxx80.NewI2C(*bus, 0x76, &bmxx80.DefaultOpts)
+	logger.Infof("Starting BMP280 reader [%x]", BMP280_I2C)
+	bme, err := bmxx80.NewI2C(*bus, BMP280_I2C, &bmxx80.DefaultOpts)
 	if err != nil {
 		logger.Errorf("failed to initialize bme280: %v", err)
 		return nil
