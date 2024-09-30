@@ -162,6 +162,7 @@ func main() {
 
 	//setup heartbeat
 	w.HeartbeatLed = led.NewLED("Heartbeat LED", env.HeartbeatLed)
+	go w.Heartbeat()
 
 	w.data = data.CreateWeatherData()
 
@@ -178,7 +179,7 @@ func main() {
 	defer logger.Info("Exiting...")
 }
 
-func (w *weatherstation) heartbeat() {
+func (w *weatherstation) Heartbeat() {
 	logger.Info("Heartbeat started")
 	for {
 		w.HeartbeatLed.Flash()

@@ -39,7 +39,7 @@ func InitSensors(args *env.Args) *Sensors {
 
 	s.Atm = NewAtmosphere(&bus)
 	s.Rain = NewRainmeter(&bus)
-	s.Wind = NewAnemometer(&bus, args.Verbose)
+	s.Wind = NewAnemometer(&bus, args.Diron, args.Speedon)
 	if args.Imuon {
 		s.IMU = NewIMU(&bus)
 	}

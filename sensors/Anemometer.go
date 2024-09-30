@@ -18,7 +18,8 @@ type anemometer struct {
 	speedBuf *buffer.SampleBuffer
 	gustBuf  *buffer.SampleBuffer
 	dirBuf   *buffer.SampleBuffer
-	verbose  bool
+	dir      bool
+	speed    bool
 	masthead *i2c.Dev
 }
 
@@ -26,9 +27,10 @@ const MastHead uint16 = 0x55
 
 var lastVal float64 = 0
 
-func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
+func NewAnemometer(bus *i2c.Bus, dir bool, speed bool) *anemometer {
 	a := &anemometer{}
-	a.verbose = verbose
+	a.dir = dir
+	a.speed = speed
 	a.Bus = bus
 
 	logger.Infof("Starting Masthead I2C [%x]", MastHead)
@@ -86,11 +88,11 @@ func (a *anemometer) monitorWindGPIO() {
 			} else {
 				a.dirBuf.AddItem(a.readDirection())
 			}
-			if a.verbose {
+			if a.speed {
 				count++
 				if count == 3 {
 					count = 0
-					logger.Infof("Dir [%v], MPH [%.2f] Count read [%v]", a.readDirection(), (float64(pulseCount*4.0) * env.MphPerTick), pulseCount)
+					logger.Infof("MPH [%.2f] Count read [%v]", (float64(pulseCount*4.0) * env.MphPerTick), pulseCount)
 				}
 			}
 		}
@@ -167,50 +169,35 @@ func (a *anemometer) readDirection() float64 {
 	sample, err := (*a.dirADC).Read()
 	if err != nil {
 		logger.Debugf("Error reading wind direction value [%v]", err)
-		sample.Raw = 0
+		return a.dirBuf.GetLast()
 	}
-	if a.verbose {
-		logger.Infof("Volts [%v], Deg [%v]", float64(sample.V)/float64(physic.Volt), voltToDegrees(float64(sample.V)/float64(physic.Volt)))
+	deg, str := voltToDegrees(float64(sample.V) / float64(physic.Volt))
+	if a.dir {
+		logger.Infof("Volts [%v], Deg [%v] : %s", float64(sample.V)/float64(physic.Volt), deg, str)
 	}
-	return voltToDegrees(float64(sample.V) / float64(physic.Volt))
+	return deg
 }
 
-func voltToDegrees(v float64) float64 {
-	// this is based on the sensor datasheet that gives a list of voltages for each direction when set up according
-	// to the circuit given. Have noticed the output isn't that accurate relative to the sensor direction...
+func voltToDegrees(v float64) (float64, string) {
+	// this is based on actual measurements of output voltage for each cardinal point
+	// threhold voltage is midway between the two recorded values.
 	switch {
-	case v < 0.365:
-		return 112.5
-	case v < 0.430:
-		return 67.5
-	case v < 0.535:
-		return 90.0
-	case v < 0.760:
-		return 157.5
-	case v < 1.045:
-		return 135.0
-	case v < 1.295:
-		return 202.5
-	case v < 1.690:
-		return 180.0
-	case v < 2.115:
-		return 22.5
-	case v < 2.590:
-		return 45.0
-	case v < 3.005:
-		return 247.5
-	case v < 3.225:
-		return 225.0
-	case v < 3.635:
-		return 337.5
-	case v < 3.940:
-		return 0
-	case v < 4.185:
-		return 292.5
-	case v < 4.475:
-		return 315.0
+	case v < 1.19:
+		return 135, "SE"
+	case v < 1.59:
+		return 180, "S"
+	case v < 2.09:
+		return 90, "E"
+	case v < 2.8:
+		return 45, "NE"
+	case v < 3.56:
+		return 225, "SW"
+	case v < 4.2:
+		return 0, "N"
+	case v < 4.59:
+		return 315, "NW"
 	default:
-		return 270.0
+		return 270.0, "W"
 	}
 }
 
