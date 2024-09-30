@@ -80,12 +80,14 @@ func (l *LED) Off() {
 
 func (l *LED) Flash() {
 	if l.gpioPin == nil {
+		logger.Infof("No such LED [%v]", l.gpioPin)
 		return
 	}
 	if !l.lock.TryLock() {
 		// despite the function description, this is a valid use case. We don't want lots of
 		// flash requests all queuing waiting on the mutex, if a flash is in progress we can
 		// safely discard the current request.
+		logger.Infof("LED Locked[%v]", l.gpioPin)
 		return
 	}
 	defer l.lock.Unlock()

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
-	"github.com/pointer2null/weather/constants"
+	"github.com/pointer2null/weather/env"
 	"github.com/pointer2null/weather/led"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
@@ -44,13 +44,13 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 	r := &rainmeter{}
 
 	// Lookup a rainpin by its number:
-	rp := gpioreg.ByName(constants.RainSensorIn)
+	rp := gpioreg.ByName(env.RainSensorIn)
 	if rp == nil {
-		logger.Errorf("Failed to find %v - rain pin", constants.RainSensorIn)
+		logger.Errorf("Failed to find %v - rain pin", env.RainSensorIn)
 		return nil
 	}
 
-	logger.Infof("%s: %s", rp, rp.Function())
+	logger.Infof("Rain Pin: %s: %s", rp, rp.Function())
 
 	// Set up debounced pin
 	// Ignore glitches lasting less than 100ms, and ignore repeated edges within 500ms.
@@ -61,7 +61,7 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 	}
 	r.gpioPin = &rainpin
 
-	r.ledOut = led.NewLED("Rain Tip", constants.RainTipLed)
+	r.ledOut = led.NewLED("Rain Tip", env.RainTipLed)
 
 	// every 10 seconds for last hour = 3600 / 10 = 360
 	r.tipBuf = buffer.NewBuffer(360)
@@ -71,12 +71,12 @@ func NewRainmeter(bus *i2c.Bus) *rainmeter {
 
 func (r *rainmeter) GetRate() mmHr {
 	_, _, _, sum := r.tipBuf.GetAverageMinMaxSum()
-	return toMMHr(constants.MMPerBucketTip * float64(sum))
+	return toMMHr(env.MMPerBucketTip * float64(sum))
 }
 
 func (r *rainmeter) GetMinuteRate() mm {
 	sum, _, _ := r.tipBuf.SumMinMaxLast(6) // last minute
-	return mm(int64(constants.MMPerBucketTip * sum))
+	return mm(int64(env.MMPerBucketTip * sum))
 }
 
 func (r *rainmeter) GetDayAccumulation() mm {

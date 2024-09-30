@@ -1,4 +1,4 @@
-package constants
+package env
 
 const (
 	GPIO01 = "GPIO01"
@@ -31,7 +31,7 @@ const (
 	GPIO28 = "GPIO28"
 	GPIO29 = "GPIO29"
 
-	RainSensorIn = GPIO17
+	RainSensorIn = GPIO12
 	WindSensorIn = GPIO27
 
 	HeartbeatLed = GPIO19

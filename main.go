@@ -11,9 +11,9 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/pointer2null/weather/constants"
 	"github.com/pointer2null/weather/data"
 	"github.com/pointer2null/weather/db/postgres"
+	"github.com/pointer2null/weather/env"
 	"github.com/pointer2null/weather/led"
 	"github.com/pointer2null/weather/sensors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,8 +36,8 @@ type weatherstation struct {
 	s            *sensors.Sensors
 	data         *data.WeatherData
 	Db           *postgres.Queries
-	testMode     bool
 	HeartbeatLed *led.LED
+	args         *env.Args
 }
 
 type webdata struct {
@@ -125,12 +125,15 @@ func init() {
 func main() {
 	logger.Infof("Starting weather station [%v]", version)
 	w := weatherstation{}
+	w.args = &env.Args{}
 
-	testMode := flag.Bool("test", false, "test mode, does not send met office data")
-	verbose := flag.Bool("v", false, "verbose loggin")
+	w.args.TestMode = *flag.Bool("test", false, "test mode, does not send met office data")
+	w.args.Verbose = *flag.Bool("v", false, "verbose logging")
+	w.args.Imuon = *flag.Bool("imu", false, "activates the IMU output")
+	w.args.Speedon = *flag.Bool("son", false, "show wind speed info")
 	flag.Parse()
 
-	if *testMode {
+	if w.args.TestMode {
 		logger.Info("TEST MODE")
 	}
 
@@ -149,9 +152,8 @@ func main() {
 	w.Db = postgres.New(db)
 
 	logger.Info("Initializing sensors...")
-	w.testMode = *testMode
 
-	w.s = sensors.InitSensors(*testMode, *verbose)
+	w.s = sensors.InitSensors(w.args)
 	if w.s == nil {
 		logger.Error("Failed to initialise sensors")
 		logger.Exit(1)
@@ -159,22 +161,20 @@ func main() {
 	defer (*w.s.Closer).Close()
 
 	//setup heartbeat
-	w.HeartbeatLed = led.NewLED("Heartbeat LED", constants.HeartbeatLed)
+	w.HeartbeatLed = led.NewLED("Heartbeat LED", env.HeartbeatLed)
 
 	w.data = data.CreateWeatherData()
 
-	go w.Reporting(*testMode)
-
-	if !(*testMode) {
-		go w.heartbeat()
-	}
+	go w.Reporting()
 
 	// start web service
 	logger.Info("Starting webservice...")
 	http.HandleFunc("/", w.handler)
 	http.Handle("/metrics", promhttp.Handler())
 
-	logger.Fatal(http.ListenAndServe(":80", nil))
+	logger.Info(http.ListenAndServe(":80", nil))
+	w.HeartbeatLed.Off()
+	w.s.Rain.GetLED().Off()
 	defer logger.Info("Exiting...")
 }
 

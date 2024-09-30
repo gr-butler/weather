@@ -41,7 +41,6 @@ func (b *SampleBuffer) addItemNoLock(val float64) {
 	b.position += 1
 	if b.position == b.size {
 		b.position = 0
-		// b.checkAutoFill()
 	}
 	if b.first {
 		// fill buffer

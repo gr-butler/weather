@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/go-querystring/query"
-	"github.com/pointer2null/weather/constants"
 	"github.com/pointer2null/weather/db/postgres"
+	"github.com/pointer2null/weather/env"
 
 	logger "github.com/sirupsen/logrus"
 )
@@ -89,15 +89,20 @@ type weatherData struct {
 // * send data to the wow url every reportFreqMin mins
 // * update grafana endpoints
 // * update db
-func (w *weatherstation) Reporting(testMode bool) {
+func (w *weatherstation) Reporting() {
 	/*
 	   Safety net for 'too many open files' issue on legacy code.
 	   Set a sane timeout duration for the http.DefaultClient, to ensure idle connections are terminated.
 	   Reference: https://stackoverflow.com/questions/37454236/net-http-server-too-many-open-files-error
 	*/
 
+	defer func() {
+		w.HeartbeatLed.Off()
+		w.s.Rain.GetLED().Off()
+	}()
+
 	duration := time.Minute
-	if testMode {
+	if w.args.TestMode {
 		duration = time.Second
 	}
 
@@ -107,17 +112,21 @@ func (w *weatherstation) Reporting(testMode bool) {
 
 			vals, _ := query.Values(data)
 
-			if testMode {
-				logger.Infof("Sensor test: %v", msg)
+			if w.args.TestMode {
+				if w.args.Verbose {
+					logger.Infof("Sensor test: %v", msg)
+				}
 				// flash LED's
 				if w.HeartbeatLed.IsOn() {
 					w.HeartbeatLed.Off()
-					w.s.Rain.GetLED().On()
 				} else {
 					w.HeartbeatLed.On()
-					w.s.Rain.GetLED().Off()
 				}
-			} else if t.Minute()%constants.ReportFreqMin == 0 {
+				if w.s.IMU != nil {
+					x, y, z := w.s.IMU.ReadAccel(true)
+					logger.Infof("IMU x [%v], y [%v], z [%v]", x, y, z)
+				}
+			} else if t.Minute()%env.ReportFreqMin == 0 {
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
@@ -196,7 +205,7 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 
 		Prom_humidity.Set(humidity.Float64())
 
-		pressureInHg := pressure * constants.HPaToInHg
+		pressureInHg := pressure * env.HPaToInHg
 
 		/*
 			3. Convert the average temperature to Kelvin by adding 273.1 to the Celsius value.
@@ -229,6 +238,8 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 
 		wd.PressureIn = mslp
 		msg = fmt.Sprintf("Pressure [%2f], Humidity [%2f], Temperature [%2f]", pressure, humidity, tempC)
+	} else {
+		msg = msg + "Pressure [-], Humidity [-], Temperature [-]"
 	}
 
 	if w.s.Rain != nil {
@@ -239,6 +250,8 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		Prom_rainDayTotal.Set(rainInch)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
+	} else {
+		msg = msg + ", Rain accumulation [-]"
 	}
 
 	if w.s.Wind != nil {
@@ -255,6 +268,8 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		wd.WindSpeedMph = windSpeed
 		wd.WindGustMph = windGust
 		msg = msg + fmt.Sprintf(", Dir [%2f], Speed [%v] Gust [%v]", windDirection, windSpeed, windGust)
+	} else {
+		msg = msg + ", Dir [-], Speed [-] Gust [-]"
 	}
 
 	return &wd, msg
@@ -266,5 +281,5 @@ func ctof(c float64) float64 {
 }
 
 func mmToIn(mm float64) float64 {
-	return mm / constants.MmToInch
+	return mm / env.MmToInch
 }

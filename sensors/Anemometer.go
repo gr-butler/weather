@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
-	"github.com/pointer2null/weather/constants"
+	"github.com/pointer2null/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/physic"
@@ -23,6 +23,8 @@ type anemometer struct {
 }
 
 const MastHead uint16 = 0x55
+
+var lastVal float64 = 0
 
 func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	a := &anemometer{}
@@ -57,7 +59,7 @@ func NewAnemometer(bus *i2c.Bus, verbose bool) *anemometer {
 	a.speedBuf = buffer.NewBuffer(480)
 	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
 	a.gustBuf = buffer.NewBuffer(2400)
-	a.dirBuf = buffer.NewBuffer(1200)
+	a.dirBuf = buffer.NewBuffer(140)
 	a.monitorWindGPIO()
 
 	return a
@@ -70,6 +72,7 @@ func (a *anemometer) monitorWindGPIO() {
 		// record the count every 250ms
 		write := []byte{0x00} // we don't need to send any command
 		read := make([]byte, 4)
+		count := 0
 		for range time.Tick(time.Millisecond * 250) {
 			if err := a.masthead.Tx(write, read); err != nil {
 				logger.Errorf("Failed to request count from masthead [%v]", err)
@@ -84,7 +87,11 @@ func (a *anemometer) monitorWindGPIO() {
 				a.dirBuf.AddItem(a.readDirection())
 			}
 			if a.verbose {
-				logger.Infof("Dir [%v], MPH [%.2f] Count [%v]", a.readDirection(), (float64(pulseCount*4.0) * constants.MphPerTick), pulseCount)
+				count++
+				if count == 3 {
+					count = 0
+					logger.Infof("Dir [%v], MPH [%.2f] Count read [%v]", a.readDirection(), (float64(pulseCount*4.0) * env.MphPerTick), pulseCount)
+				}
 			}
 		}
 	}()
@@ -101,7 +108,7 @@ func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
 	// sum is the total pulse count for 2 mins
 	ticksPerSec := sum / (2 * 60)
 	// so the avg speed for the last 2 mins is...
-	return constants.MphPerTick * float64(ticksPerSec)
+	return env.MphPerTick * float64(ticksPerSec)
 }
 
 func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
@@ -133,8 +140,15 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 			threeSecMax = x
 		}
 	}
-
-	return (threeSecMax / 3) * constants.MphPerTick
+	// we still occasionally get stupid values (500MPH)
+	// these are either caused by em interference or by
+	// switch bounce. Either way we need to filter them out.
+	val := (threeSecMax / 3) * env.MphPerTick
+	if val > 120 {
+		val = lastVal
+	}
+	lastVal = val
+	return val
 }
 
 func getRolledIndex(x int, size int) int {
@@ -155,7 +169,9 @@ func (a *anemometer) readDirection() float64 {
 		logger.Debugf("Error reading wind direction value [%v]", err)
 		sample.Raw = 0
 	}
-
+	if a.verbose {
+		logger.Infof("Volts [%v], Deg [%v]", float64(sample.V)/float64(physic.Volt), voltToDegrees(float64(sample.V)/float64(physic.Volt)))
+	}
 	return voltToDegrees(float64(sample.V) / float64(physic.Volt))
 }
 
