@@ -1,5 +1,7 @@
 package env
 
+import "time"
+
 const (
 	GPIO01 = "GPIO01"
 	GPIO02 = "GPIO02" // SDA
@@ -43,4 +45,6 @@ const (
 	HPaToInHg     = 0.02953
 	MmToInch      = 25.4
 	ReportFreqMin = 10
+
+	LEDFlashDuration = time.Millisecond * 50
 )

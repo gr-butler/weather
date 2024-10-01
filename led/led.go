@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pointer2null/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"
@@ -94,12 +95,12 @@ func (l *LED) Flash() {
 	// if the LED is currently off, then flash on
 	if !l.on {
 		_ = l.gpioPin.Out(gpio.High)
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(env.LEDFlashDuration)
 		_ = l.gpioPin.Out(gpio.Low)
 	} else {
 		// 'off' flash
 		_ = l.gpioPin.Out(gpio.Low)
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(env.LEDFlashDuration)
 		_ = l.gpioPin.Out(gpio.High)
 	}
 }
@@ -116,7 +117,7 @@ func (l *LED) Flicker(pulses int) {
 	}
 	for i := 0; i < pulses; i++ {
 		_ = l.gpioPin.Out(gpio.High)
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(env.LEDFlashDuration)
 		_ = l.gpioPin.Out(gpio.Low)
 	}
 }

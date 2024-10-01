@@ -69,7 +69,7 @@ func (a *anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
 	period := time.Millisecond * 250
-	if *a.args.TestMode {
+	if *a.args.Quiet {
 		logger.Info("Wind sensor period set to 1 second for test")
 		period = time.Second
 	}

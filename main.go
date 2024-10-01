@@ -127,15 +127,15 @@ func main() {
 	w := weatherstation{}
 	w.args = &env.Args{}
 
-	w.args.TestMode = flag.Bool("test", false, "test mode, does not send met office data")
+	w.args.Quiet = flag.Bool("quiet", false, "quiet, does not send met office data")
 	w.args.Verbose = flag.Bool("v", false, "verbose logging")
 	w.args.Imuon = flag.Bool("imu", false, "activates the IMU output")
-	w.args.Speedon = flag.Bool("s-on", false, "show wind speed info")
-	w.args.Diron = flag.Bool("d-on", false, "show wind direction")
+	w.args.Speedon = flag.Bool("speed", false, "show wind speed info")
+	w.args.Diron = flag.Bool("dir", false, "show wind direction")
 	flag.Parse()
 
-	if *w.args.TestMode {
-		logger.Info("TEST MODE")
+	if *w.args.Quiet {
+		logger.Info("QUIET MODE")
 	}
 
 	// connect to database
@@ -184,7 +184,7 @@ func (w *weatherstation) Heartbeat() {
 	logger.Info("Heartbeat started")
 	for {
 		w.HeartbeatLed.Flash()
-		time.Sleep(time.Second * 30)
+		time.Sleep(time.Second * 60)
 	}
 }
 

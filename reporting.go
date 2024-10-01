@@ -102,7 +102,7 @@ func (w *weatherstation) Reporting() {
 	}()
 
 	duration := time.Minute
-	if *w.args.TestMode {
+	if *w.args.Quiet {
 		duration = time.Second
 	}
 
@@ -112,20 +112,21 @@ func (w *weatherstation) Reporting() {
 
 			vals, _ := query.Values(data)
 
-			if *w.args.TestMode {
-				if *w.args.Verbose {
-					logger.Infof("Sensor test: %v", msg)
-				}
+			if *w.args.Verbose {
+				logger.Infof("Sensor data: %v", msg)
+			}
+			if *w.args.Imuon {
+				x, y, z := w.s.IMU.ReadAccel(true)
+				logger.Infof("IMU x [%v], y [%v], z [%v]", x, y, z)
+			}
+			if *w.args.Quiet {
 				// flash LED's
 				if w.HeartbeatLed.IsOn() {
 					w.HeartbeatLed.Off()
 				} else {
 					w.HeartbeatLed.On()
 				}
-				if w.s.IMU != nil {
-					x, y, z := w.s.IMU.ReadAccel(true)
-					logger.Infof("IMU x [%v], y [%v], z [%v]", x, y, z)
-				}
+
 			} else if t.Minute()%env.ReportFreqMin == 0 {
 				// write data to db
 				logger.Info("Saving record to db")
