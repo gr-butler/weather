@@ -37,11 +37,11 @@ func InitSensors(args *env.Args) *Sensors {
 	bus := i2c.Bus(closer)
 	//bus.SetSpeed(physic.KiloHertz) // just in case - we're pushing our luck with the IIC bus length
 
-	s.Atm = NewAtmosphere(&bus)
-	s.Rain = NewRainmeter(&bus)
-	s.Wind = NewAnemometer(&bus, args.Diron, args.Speedon)
-	if args.Imuon {
-		s.IMU = NewIMU(&bus)
+	s.Atm = NewAtmosphere(&bus, *args)
+	s.Rain = NewRainmeter(&bus, *args)
+	s.Wind = NewAnemometer(&bus, *args)
+	if *args.Imuon {
+		s.IMU = NewIMU(&bus, *args)
 	}
 	return s
 }

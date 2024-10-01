@@ -102,7 +102,7 @@ func (w *weatherstation) Reporting() {
 	}()
 
 	duration := time.Minute
-	if w.args.TestMode {
+	if *w.args.TestMode {
 		duration = time.Second
 	}
 
@@ -112,8 +112,8 @@ func (w *weatherstation) Reporting() {
 
 			vals, _ := query.Values(data)
 
-			if w.args.TestMode {
-				if w.args.Verbose {
+			if *w.args.TestMode {
+				if *w.args.Verbose {
 					logger.Infof("Sensor test: %v", msg)
 				}
 				// flash LED's

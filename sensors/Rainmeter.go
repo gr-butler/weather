@@ -19,6 +19,7 @@ type rainmeter struct {
 	accumulation    int64
 	ledOut          *led.LED
 	tipBuf          *buffer.SampleBuffer
+	args            env.Args
 }
 
 type mmHr float64
@@ -40,8 +41,9 @@ func toMM(v int64) mm {
 	return mm(v)
 }
 
-func NewRainmeter(bus *i2c.Bus) *rainmeter {
+func NewRainmeter(bus *i2c.Bus, args env.Args) *rainmeter {
 	r := &rainmeter{}
+	r.args = args
 
 	// Lookup a rainpin by its number:
 	rp := gpioreg.ByName(env.RainSensorIn)
@@ -105,7 +107,9 @@ func (r *rainmeter) monitorRainGPIO() {
 				rainTip += 1           // for rates
 				r.dayAccumulation += 1 // for day
 				r.accumulation += 1    // for accumulations
-				logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
+				if *r.args.Rainon {
+					logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
+				}
 				r.ledOut.Flash()
 			}
 		}

@@ -127,13 +127,14 @@ func main() {
 	w := weatherstation{}
 	w.args = &env.Args{}
 
-	w.args.TestMode = *flag.Bool("test", false, "test mode, does not send met office data")
-	w.args.Verbose = *flag.Bool("v", false, "verbose logging")
-	w.args.Imuon = *flag.Bool("imu", false, "activates the IMU output")
-	w.args.Speedon = *flag.Bool("son", false, "show wind speed info")
+	w.args.TestMode = flag.Bool("test", false, "test mode, does not send met office data")
+	w.args.Verbose = flag.Bool("v", false, "verbose logging")
+	w.args.Imuon = flag.Bool("imu", false, "activates the IMU output")
+	w.args.Speedon = flag.Bool("s-on", false, "show wind speed info")
+	w.args.Diron = flag.Bool("d-on", false, "show wind direction")
 	flag.Parse()
 
-	if w.args.TestMode {
+	if *w.args.TestMode {
 		logger.Info("TEST MODE")
 	}
 

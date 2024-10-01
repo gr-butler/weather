@@ -18,25 +18,23 @@ type anemometer struct {
 	speedBuf *buffer.SampleBuffer
 	gustBuf  *buffer.SampleBuffer
 	dirBuf   *buffer.SampleBuffer
-	dir      bool
-	speed    bool
 	masthead *i2c.Dev
+	args     env.Args
 }
 
 const MastHead uint16 = 0x55
 
 var lastVal float64 = 0
 
-func NewAnemometer(bus *i2c.Bus, dir bool, speed bool) *anemometer {
+func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
 	a := &anemometer{}
-	a.dir = dir
-	a.speed = speed
+	a.args = args
 	a.Bus = bus
 
-	logger.Infof("Starting Masthead I2C [%x]", MastHead)
+	logger.Infof("Starting Masthead I2C [%x] Speed test flag is %v", MastHead, *a.args.Speedon)
 	a.masthead = &i2c.Dev{Addr: MastHead, Bus: *bus}
 
-	logger.Infof("Starting Wind direction ADC I2C [%x]", ads1x15.DefaultOpts.I2cAddress)
+	logger.Infof("Starting Wind direction ADC I2C [%x] Dir test flag is %v", ads1x15.DefaultOpts.I2cAddress, *a.args.Diron)
 	// Create a new ADS1115 ADC.
 	adc, err := ads1x15.NewADS1115(*a.Bus, &ads1x15.DefaultOpts)
 	if err != nil {
@@ -70,30 +68,31 @@ func NewAnemometer(bus *i2c.Bus, dir bool, speed bool) *anemometer {
 func (a *anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
+	period := time.Millisecond * 250
+	if *a.args.TestMode {
+		logger.Info("Wind sensor period set to 1 second for test")
+		period = time.Second
+	}
+
 	go func() {
 		// record the count every 250ms
 		write := []byte{0x00} // we don't need to send any command
 		read := make([]byte, 4)
-		count := 0
-		for range time.Tick(time.Millisecond * 250) {
+		for range time.Tick(period) {
 			if err := a.masthead.Tx(write, read); err != nil {
 				logger.Errorf("Failed to request count from masthead [%v]", err)
 			}
 			pulseCount := int(binary.LittleEndian.Uint32(read))
 			a.speedBuf.AddItem(float64(pulseCount))
 			a.gustBuf.AddItem(float64(pulseCount))
-			if pulseCount < 1 {
+			if pulseCount > 0 || *a.args.Diron {
+				a.dirBuf.AddItem(a.readDirection())
+			} else {
 				// if we have no wind the dir is garbage
 				a.dirBuf.AddItem(a.dirBuf.GetLast())
-			} else {
-				a.dirBuf.AddItem(a.readDirection())
 			}
-			if a.speed {
-				count++
-				if count == 3 {
-					count = 0
-					logger.Infof("MPH [%.2f] Count read [%v]", (float64(pulseCount*4.0) * env.MphPerTick), pulseCount)
-				}
+			if *a.args.Speedon {
+				logger.Infof("MPH [%.2f] Count read [%v]", (float64(pulseCount) * env.MphPerTick), pulseCount)
 			}
 		}
 	}()
@@ -138,6 +137,7 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 			data[getRolledIndex(i+13, size)] +
 			data[getRolledIndex(i+14, size)] +
 			data[getRolledIndex(i+15, size)])
+		// x is the 3 second average
 		if x > threeSecMax {
 			threeSecMax = x
 		}
@@ -172,7 +172,7 @@ func (a *anemometer) readDirection() float64 {
 		return a.dirBuf.GetLast()
 	}
 	deg, str := voltToDegrees(float64(sample.V) / float64(physic.Volt))
-	if a.dir {
+	if *a.args.Diron {
 		logger.Infof("Volts [%v], Deg [%v] : %s", float64(sample.V)/float64(physic.Volt), deg, str)
 	}
 	return deg
@@ -184,7 +184,7 @@ func voltToDegrees(v float64) (float64, string) {
 	switch {
 	case v < 1.19:
 		return 135, "SE"
-	case v < 1.59:
+	case v < 1.46:
 		return 180, "S"
 	case v < 2.09:
 		return 90, "E"

@@ -3,6 +3,7 @@ package sensors
 import (
 	"math"
 
+	"github.com/pointer2null/weather/env"
 	logger "github.com/sirupsen/logrus"
 
 	"time"
@@ -47,7 +48,7 @@ func (z zG) Float64() float64 {
 	return float64(z)
 }
 
-func NewIMU(bus *i2c.Bus) *IMU {
+func NewIMU(bus *i2c.Bus, args env.Args) *IMU {
 	i := IMU{}
 	// Create a connection to the MPU6050.
 	i.Sensor = &i2c.Dev{Addr: MPU6050_ADDRESS, Bus: *bus}

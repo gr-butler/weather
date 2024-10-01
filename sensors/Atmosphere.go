@@ -4,6 +4,7 @@ import (
 	"flag"
 	"math"
 
+	"github.com/pointer2null/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/physic"
@@ -37,7 +38,7 @@ type atmosphere struct {
 	Temp *mcp9808.Dev // MCP9808 temperature sensor
 }
 
-func NewAtmosphere(bus *i2c.Bus) *atmosphere {
+func NewAtmosphere(bus *i2c.Bus, args env.Args) *atmosphere {
 	a := &atmosphere{}
 
 	temperatureAddr := flag.Int("address", MCP9808_I2C, "I²C address")
