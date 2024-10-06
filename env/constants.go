@@ -47,4 +47,9 @@ const (
 	ReportFreqMin = 10
 
 	LEDFlashDuration = time.Millisecond * 50
+
+	MastHead uint16 = 0x55
+
+	WindSamplesPerSecond = 4
+	WindBufferPeriodMins = 1
 )

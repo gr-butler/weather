@@ -22,8 +22,6 @@ type anemometer struct {
 	args     env.Args
 }
 
-const MastHead uint16 = 0x55
-
 var lastVal float64 = 0
 
 func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
@@ -31,8 +29,8 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
 	a.args = args
 	a.Bus = bus
 
-	logger.Infof("Starting Masthead I2C [%x] Speed test flag is %v", MastHead, *a.args.Speedon)
-	a.masthead = &i2c.Dev{Addr: MastHead, Bus: *bus}
+	logger.Infof("Starting Masthead I2C [%x] Speed test flag is %v", env.MastHead, *a.args.Speedon)
+	a.masthead = &i2c.Dev{Addr: env.MastHead, Bus: *bus}
 
 	logger.Infof("Starting Wind direction ADC I2C [%x] Dir test flag is %v", ads1x15.DefaultOpts.I2cAddress, *a.args.Diron)
 	// Create a new ADS1115 ADC.
@@ -55,11 +53,11 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
 		return nil
 	}
 
-	// 4 samples per sec, for 2 mins = 120 * 4 = 480
-	a.speedBuf = buffer.NewBuffer(480)
-	// 4 samples per sec, for 10 mins = 600 * 4 = 2400
-	a.gustBuf = buffer.NewBuffer(2400)
-	a.dirBuf = buffer.NewBuffer(140)
+	// 4 samples per sec, for 1 mins = 60 * 4 = 240
+	a.speedBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
+	// 4 samples per sec, for 1 mins = 60 * 4 = 240
+	a.gustBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
+	a.dirBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
 	a.monitorWindGPIO()
 
 	return a
@@ -68,10 +66,10 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
 func (a *anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
-	period := time.Millisecond * 250
+	period := time.Millisecond * (time.Second / time.Millisecond / env.WindSamplesPerSecond)
 	if *a.args.Quiet {
 		logger.Info("Wind sensor period set to 1 second for test")
-		period = time.Second
+		period = time.Second * 1
 	}
 
 	go func() {
@@ -92,7 +90,7 @@ func (a *anemometer) monitorWindGPIO() {
 				a.dirBuf.AddItem(a.dirBuf.GetLast())
 			}
 			if *a.args.Speedon {
-				logger.Infof("MPH [%.2f] Count read [%v]", (float64(pulseCount) * env.MphPerTick), pulseCount)
+				logger.Infof("MPH raw [%.2f], calc [%v] Count read [%v]", (float64(pulseCount) * env.MphPerTick), a.GetSpeed(), pulseCount)
 			}
 		}
 	}()
@@ -107,12 +105,13 @@ func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
 	// the buffer contains pulse counts.
 	_, _, _, sum := a.speedBuf.GetAverageMinMaxSum()
 	// sum is the total pulse count for 2 mins
-	ticksPerSec := sum / (2 * 60)
+	ticksPerSec := sum / (env.WindBufferPeriodMins * 60)
 	// so the avg speed for the last 2 mins is...
 	return env.MphPerTick * float64(ticksPerSec)
 }
 
 func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
+	const threeSecond = 3
 	data, s, _ := a.gustBuf.GetRawData()
 	size := int(s)
 	// make an array for the 3 second rolling average
@@ -120,23 +119,10 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 	x := 0.0
 
 	for i := 0; i < size; i++ {
-		// 4 samples per second...
-		x = (data[getRolledIndex(i, size)] +
-			data[getRolledIndex(i+1, size)] +
-			data[getRolledIndex(i+2, size)] +
-			data[getRolledIndex(i+3, size)] +
-			data[getRolledIndex(i+4, size)] +
-			data[getRolledIndex(i+5, size)] +
-			data[getRolledIndex(i+6, size)] +
-			data[getRolledIndex(i+7, size)] +
-			data[getRolledIndex(i+8, size)] +
-			data[getRolledIndex(i+9, size)] +
-			data[getRolledIndex(i+10, size)] +
-			data[getRolledIndex(i+11, size)] +
-			data[getRolledIndex(i+12, size)] +
-			data[getRolledIndex(i+13, size)] +
-			data[getRolledIndex(i+14, size)] +
-			data[getRolledIndex(i+15, size)])
+		x = 0
+		for j := 0; j < (env.WindSamplesPerSecond * threeSecond); j++ {
+			x += (data[getWrappedIndex(i+j, size)])
+		}
 		// x is the 3 second average
 		if x > threeSecMax {
 			threeSecMax = x
@@ -145,7 +131,7 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 	// we still occasionally get stupid values (500MPH)
 	// these are either caused by em interference or by
 	// switch bounce. Either way we need to filter them out.
-	val := (threeSecMax / 3) * env.MphPerTick
+	val := (threeSecMax / threeSecond) * env.MphPerTick
 	if val > 120 {
 		val = lastVal
 	}
@@ -153,7 +139,7 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 	return val
 }
 
-func getRolledIndex(x int, size int) int {
+func getWrappedIndex(x int, size int) int {
 	if x >= size {
 		return x - size
 	}
