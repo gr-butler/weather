@@ -13,7 +13,7 @@ import (
 type Sensors struct {
 	Atm    *atmosphere
 	Rain   *rainmeter
-	Wind   *anemometer
+	Wind   *Anemometer
 	IMU    *IMU
 	Closer *i2c.BusCloser
 }

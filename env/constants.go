@@ -54,6 +54,6 @@ const (
 
 	// Because wind is an element that varies rapidly over very short periods of time
 	// it is sampled at high frequency (every 0.25 sec)
-	WindSamplesPerSecond = 4
-	WindBufferPeriodMins = 1
+	WindSamplesPerSecond    = 4
+	WindBufferLengthSeconds = 60
 )

@@ -12,7 +12,7 @@ import (
 	"periph.io/x/periph/experimental/devices/ads1x15"
 )
 
-type anemometer struct {
+type Anemometer struct {
 	dirADC   *ads1x15.PinADC
 	Bus      *i2c.Bus
 	speedBuf *buffer.SampleBuffer
@@ -24,8 +24,8 @@ type anemometer struct {
 
 var lastVal float64 = 0
 
-func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
-	a := &anemometer{}
+func NewAnemometer(bus *i2c.Bus, args env.Args) *Anemometer {
+	a := &Anemometer{}
 	a.args = args
 	a.Bus = bus
 
@@ -54,16 +54,16 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *anemometer {
 	}
 
 	// 4 samples per sec, for 1 mins = 60 * 4 = 240
-	a.speedBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
+	a.speedBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
 	// 4 samples per sec, for 1 mins = 60 * 4 = 240
-	a.gustBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
-	a.dirBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferPeriodMins * 60)
+	a.gustBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
+	a.dirBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
 	a.monitorWindGPIO()
 
 	return a
 }
 
-func (a *anemometer) monitorWindGPIO() {
+func (a *Anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
 	period := time.Millisecond * (time.Second / time.Millisecond / env.WindSamplesPerSecond)
@@ -96,16 +96,16 @@ func (a *anemometer) monitorWindGPIO() {
 	}()
 }
 
-func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
+func (a *Anemometer) GetSpeed() float64 { // WindBufferLengthSeconds min rolling average
 	// the buffer contains pulse counts.
-	_, _, _, sum := a.speedBuf.GetAverageMinMaxSum()
-	// sum is the total pulse count for 2 mins
-	ticksPerSec := sum / (env.WindBufferPeriodMins * 60)
-	// so the avg speed for the last 2 mins is...
+	avg, _, _, _ := a.speedBuf.GetAverageMinMaxSum()
+	// avg ticks per 1/env.WindSamplesPerSecond seconds
+	ticksPerSec := avg * env.WindSamplesPerSecond
+	// so the avg speed for the last WindBufferLengthSeconds seconds is...
 	return env.MphPerTick * float64(ticksPerSec)
 }
 
-func (a *anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
+func (a *Anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
 	const threeSecond = 3
 	data, s, _ := a.gustBuf.GetRawData()
 	size := int(s)
@@ -142,12 +142,12 @@ func getWrappedIndex(x int, size int) int {
 	return x
 }
 
-func (a *anemometer) GetDirection() float64 {
+func (a *Anemometer) GetDirection() float64 {
 	avg, _, _, _ := a.dirBuf.GetAverageMinMaxSum()
 	return float64(avg)
 }
 
-func (a *anemometer) readDirection() float64 {
+func (a *Anemometer) readDirection() float64 {
 	sample, err := (*a.dirADC).Read()
 	if err != nil {
 		logger.Debugf("Error reading wind direction value [%v]", err)

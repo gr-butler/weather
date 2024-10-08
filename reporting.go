@@ -248,6 +248,7 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		// what amount since last sent
 		acc := w.s.Rain.GetDayAccumulation().Float64()
 		rainInch := mmToIn(acc)
+		wd.RainIn = rainInch
 		Prom_rainDayTotal.Set(rainInch)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
@@ -268,7 +269,7 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		wd.WindDir = windDirection
 		wd.WindSpeedMph = windSpeed
 		wd.WindGustMph = windGust
-		msg = msg + fmt.Sprintf(", Dir [%2f], Speed [%v] Gust [%v]", windDirection, windSpeed, windGust)
+		msg = msg + fmt.Sprintf(", Dir [%2f], Speed [%2f] Gust [%2f]", windDirection, windSpeed, windGust)
 	} else {
 		msg = msg + ", Dir [-], Speed [-] Gust [-]"
 	}
