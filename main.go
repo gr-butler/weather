@@ -62,7 +62,7 @@ var Prom_atmPresure = prometheus.NewGauge(
 var Prom_rainRatePerMin = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "rain_min_rate",
-		Help: "The rain rate based on the last 1 minuntes",
+		Help: "The rain rate based on the last 1 minutes",
 	},
 )
 
@@ -132,6 +132,7 @@ func main() {
 	w.args.Imuon = flag.Bool("imu", false, "activates the IMU output")
 	w.args.Speedon = flag.Bool("speed", false, "show wind speed info")
 	w.args.Diron = flag.Bool("dir", false, "show wind direction")
+	w.args.Rainon = flag.Bool("rain", false, "show rain tip info")
 	flag.Parse()
 
 	if *w.args.Quiet {

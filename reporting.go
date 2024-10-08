@@ -102,7 +102,7 @@ func (w *weatherstation) Reporting() {
 	}()
 
 	duration := time.Minute
-	if *w.args.Quiet {
+	if *w.args.Verbose {
 		duration = time.Second
 	}
 
@@ -120,7 +120,7 @@ func (w *weatherstation) Reporting() {
 				logger.Infof("IMU x [%v], y [%v], z [%v]", x, y, z)
 			}
 			if *w.args.Quiet {
-				// flash LED's
+				// flash LED's only
 				if w.HeartbeatLed.IsOn() {
 					w.HeartbeatLed.Off()
 				} else {

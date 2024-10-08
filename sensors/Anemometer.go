@@ -96,11 +96,6 @@ func (a *anemometer) monitorWindGPIO() {
 	}()
 }
 
-// https://www.metoffice.gov.uk/weather/guides/observations/how-we-measure-wind
-
-// Because wind is an element that varies rapidly over very short periods of time
-// it is sampled at high frequency (every 0.25 sec)
-
 func (a *anemometer) GetSpeed() float64 { // 2 min rolling average
 	// the buffer contains pulse counts.
 	_, _, _, sum := a.speedBuf.GetAverageMinMaxSum()
@@ -130,7 +125,8 @@ func (a *anemometer) GetGust() float64 { // "the maximum three second average wi
 	}
 	// we still occasionally get stupid values (500MPH)
 	// these are either caused by em interference or by
-	// switch bounce. Either way we need to filter them out.
+	// switch bounce. Either way we need to filter them out
+	// until we can find the root cause and remove it.
 	val := (threeSecMax / threeSecond) * env.MphPerTick
 	if val > 120 {
 		val = lastVal

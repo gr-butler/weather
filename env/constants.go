@@ -21,8 +21,8 @@ const (
 	GPIO16 = "GPIO16"
 	GPIO17 = "GPIO17"
 	GPIO18 = "GPIO18"
-	GPIO19 = "GPIO19" // heartbeat LED
-	GPIO20 = "GPIO20" // rain tip LED
+	GPIO19 = "GPIO19" // rain tip LED
+	GPIO20 = "GPIO20" // heartbeat LED
 	GPIO21 = "GPIO21"
 	GPIO22 = "GPIO22"
 	GPIO23 = "GPIO23"
@@ -36,8 +36,8 @@ const (
 	RainSensorIn = GPIO12
 	WindSensorIn = GPIO27
 
-	HeartbeatLed = GPIO19
-	RainTipLed   = GPIO20
+	HeartbeatLed = GPIO20
+	RainTipLed   = GPIO19
 
 	MphPerTick     = 1.429
 	MMPerBucketTip = 0.2794
@@ -50,6 +50,10 @@ const (
 
 	MastHead uint16 = 0x55
 
+	// https://www.metoffice.gov.uk/weather/guides/observations/how-we-measure-wind
+
+	// Because wind is an element that varies rapidly over very short periods of time
+	// it is sampled at high frequency (every 0.25 sec)
 	WindSamplesPerSecond = 4
 	WindBufferPeriodMins = 1
 )
