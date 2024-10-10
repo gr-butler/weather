@@ -1,7 +1,6 @@
 package sensors
 
 import (
-	"encoding/binary"
 	"time"
 
 	"github.com/pointer2null/weather/buffer"
@@ -67,7 +66,7 @@ func (a *Anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
 	period := time.Millisecond * (time.Second / time.Millisecond / env.WindSamplesPerSecond)
-	if *a.args.Quiet {
+	if *a.args.Test {
 		logger.Info("Wind sensor period set to 1 second for test")
 		period = time.Second * 1
 	}
@@ -75,12 +74,16 @@ func (a *Anemometer) monitorWindGPIO() {
 	go func() {
 		// record the count every 250ms
 		write := []byte{0x00} // we don't need to send any command
-		read := make([]byte, 4)
+		read := make([]byte, 2)
 		for range time.Tick(period) {
 			if err := a.masthead.Tx(write, read); err != nil {
 				logger.Errorf("Failed to request count from masthead [%v]", err)
 			}
-			pulseCount := int(binary.LittleEndian.Uint32(read))
+			pulseCount := uint32(read[1])
+			if pulseCount > 25 {
+				logger.Errorf("Pulse count error [%v] [%v] [%b]", pulseCount, read, read)
+				pulseCount = 0
+			}
 			a.speedBuf.AddItem(float64(pulseCount))
 			a.gustBuf.AddItem(float64(pulseCount))
 			if pulseCount > 0 || *a.args.Diron {
@@ -101,8 +104,19 @@ func (a *Anemometer) GetSpeed() float64 { // WindBufferLengthSeconds min rolling
 	avg, _, _, _ := a.speedBuf.GetAverageMinMaxSum()
 	// avg ticks per 1/env.WindSamplesPerSecond seconds
 	ticksPerSec := avg * env.WindSamplesPerSecond
+	if ticksPerSec < 0 {
+		d, _, _ := a.speedBuf.GetRawData()
+		logger.Errorf("INVALID TicksPerSecond [%v]\n[%v]", ticksPerSec, d)
+		ticksPerSec = 0
+	}
 	// so the avg speed for the last WindBufferLengthSeconds seconds is...
-	return env.MphPerTick * float64(ticksPerSec)
+	speed := env.MphPerTick * float64(ticksPerSec)
+	if speed > 100 {
+		d, _, p := a.speedBuf.GetRawData()
+		logger.Errorf("Speed valculation error [%v] pos [%v]\n%v", speed, p, d)
+		speed = 0
+	}
+	return speed
 }
 
 func (a *Anemometer) GetGust() float64 { // "the maximum three second average wind speed occurring in any period (10 min)"
