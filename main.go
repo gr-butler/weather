@@ -140,7 +140,7 @@ func main() {
 	flag.Parse()
 
 	if *w.args.Test {
-		logger.Info("QUIET MODE")
+		logger.Info("TEST MODE")
 	}
 
 	// connect to database

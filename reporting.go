@@ -272,7 +272,7 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		wd.WindDir = windDirection
 		wd.WindSpeedMph = windSpeed
 		wd.WindGustMph = windGust
-		msg = msg + fmt.Sprintf(", Dir [%2f], Speed [%2f] Gust [%2f]", windDirection, windSpeed, windGust)
+		msg = msg + fmt.Sprintf(", Dir [%2f] (%v), Speed [%2f] Gust [%2f]", windDirection, w.s.Wind.DirStr, windSpeed, windGust)
 	} else {
 		msg = msg + ", Dir [-], Speed [-], Gust [-]"
 	}

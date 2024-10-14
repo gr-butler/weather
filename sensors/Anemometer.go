@@ -17,6 +17,7 @@ type Anemometer struct {
 	speedBuf *buffer.SampleBuffer
 	gustBuf  *buffer.SampleBuffer
 	dirBuf   *buffer.SampleBuffer
+	DirStr   string
 	masthead *i2c.Dev
 	args     env.Args
 }
@@ -52,11 +53,16 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *Anemometer {
 		return nil
 	}
 
+	sps := env.WindSamplesPerSecond
+	if *a.args.Test {
+		sps = 1
+	}
 	// 4 samples per sec, for 1 mins = 60 * 4 = 240
-	a.speedBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
+	a.speedBuf = buffer.NewBuffer(sps * env.WindBufferLengthSeconds)
 	// 4 samples per sec, for 1 mins = 60 * 4 = 240
-	a.gustBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
-	a.dirBuf = buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds)
+	a.gustBuf = buffer.NewBuffer(sps * env.WindBufferLengthSeconds)
+	a.dirBuf = buffer.NewBuffer(sps * env.WindBufferLengthSeconds)
+
 	a.monitorWindGPIO()
 
 	return a
@@ -79,7 +85,7 @@ func (a *Anemometer) monitorWindGPIO() {
 			if err := a.masthead.Tx(write, read); err != nil {
 				logger.Errorf("Failed to request count from masthead [%v]", err)
 			}
-			pulseCount := uint32(read[1])
+			pulseCount := uint32(read[0])
 			if pulseCount > 25 {
 				logger.Errorf("Pulse count error [%v] [%v] [%b]", pulseCount, read, read)
 				pulseCount = 0
@@ -168,6 +174,7 @@ func (a *Anemometer) readDirection() float64 {
 		return a.dirBuf.GetLast()
 	}
 	deg, str := voltToDegrees(float64(sample.V) / float64(physic.Volt))
+	a.DirStr = str
 	if *a.args.Diron {
 		logger.Infof("Volts [%v], Deg [%v] : %s", float64(sample.V)/float64(physic.Volt), deg, str)
 	}
