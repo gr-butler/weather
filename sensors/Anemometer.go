@@ -185,20 +185,36 @@ func voltToDegrees(v float64) (float64, string) {
 	// this is based on actual measurements of output voltage for each cardinal point
 	// threhold voltage is midway between the two recorded values.
 	switch {
-	case v < 1.19:
-		return 135, "SE"
-	case v < 1.46:
-		return 180, "S"
-	case v < 2.09:
-		return 90, "E"
-	case v < 2.8:
-		return 45, "NE"
-	case v < 3.56:
-		return 225, "SW"
-	case v < 4.2:
+	case v < 0.376:
+		return 112.5, "ESE"
+	case v < 0.441:
+		return 67.5, "ENE"
+	case v < 0.548:
+		return 90.0, "E"
+	case v < 0.775:
+		return 157.5, "SSE"
+	case v < 1.069:
+		return 135.0, "SE"
+	case v < 1.324:
+		return 202.5, "SSW"
+	case v < 1.726:
+		return 180.0, "S"
+	case v < 2.161:
+		return 22.5, "NNE"
+	case v < 2.64:
+		return 45.0, "NE"
+	case v < 3.055:
+		return 247.5, "WSW"
+	case v < 3.315:
+		return 225.0, "SW"
+	case v < 3.705:
+		return 337.5, "NNW"
+	case v < 4.013:
 		return 0, "N"
-	case v < 4.59:
-		return 315, "NW"
+	case v < 4.258:
+		return 292.5, "WNW"
+	case v < 4.550:
+		return 315.0, "NW"
 	default:
 		return 270.0, "W"
 	}
