@@ -4,7 +4,8 @@ import (
 	"flag"
 	"math"
 
-	"github.com/pointer2null/weather/env"
+	// "github.com/gr-butler/devices/htu21df"
+	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/physic"
@@ -36,10 +37,12 @@ func (t TemperatureC) Float64() float64 {
 type atmosphere struct {
 	PH   *bmxx80.Dev  // BME280 Pressure & humidity
 	Temp *mcp9808.Dev // MCP9808 temperature sensor
+	args env.Args
 }
 
 func NewAtmosphere(bus *i2c.Bus, args env.Args) *atmosphere {
 	a := &atmosphere{}
+	a.args = args
 
 	temperatureAddr := flag.Int("address", MCP9808_I2C, "I²C address")
 	logger.Infof("Starting MCP9808 Temperature Sensor [%x]", MCP9808_I2C)
@@ -70,6 +73,9 @@ func (a *atmosphere) GetHumidityAndPressure() (PressurehPa, RelHumidity) {
 			return 0, 0
 		}
 		// convert raw sensor output
+		if *a.args.Humidity {
+			logger.Infof("Hum raw [%v]", em.Humidity)
+		}
 		humidity := RelHumidity(math.Round(float64(em.Humidity) / float64(physic.PercentRH)))
 		pressure := PressurehPa(math.Round((float64(em.Pressure)/float64(100*physic.Pascal))*100) / 100)
 

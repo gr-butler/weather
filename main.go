@@ -5,17 +5,18 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"database/sql"
 
 	_ "github.com/lib/pq"
 
-	"github.com/pointer2null/weather/data"
-	"github.com/pointer2null/weather/db/postgres"
-	"github.com/pointer2null/weather/env"
-	"github.com/pointer2null/weather/led"
-	"github.com/pointer2null/weather/sensors"
+	"github.com/gr-butler/weather/data"
+	"github.com/gr-butler/weather/db/postgres"
+	"github.com/gr-butler/weather/env"
+	"github.com/gr-butler/weather/led"
+	"github.com/gr-butler/weather/sensors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -137,7 +138,16 @@ func main() {
 	w.args.WindEnabled = flag.Bool("windOn", true, "disables the anemometer")
 	w.args.AtmosphericEnabled = flag.Bool("atmOn", true, "disables atmospheric sensor")
 	w.args.RainEnabled = flag.Bool("rainOn", true, "disables rain sensor")
+	w.args.Humidity = flag.Bool("humOn", false, "Debug log raw humidity")
 	flag.Parse()
+
+	wowsiteid, idok := os.LookupEnv("WOWSITEID")
+	wowpin, pinok := os.LookupEnv("WOWPIN")
+	if !idok || !pinok {
+		logger.Warn("Missing WOW details")
+	}
+	w.args.WowPin = wowpin
+	w.args.WowSiteID = wowsiteid
 
 	if *w.args.Test {
 		logger.Info("TEST MODE")

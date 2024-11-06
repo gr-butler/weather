@@ -3,8 +3,8 @@ package sensors
 import (
 	"time"
 
-	"github.com/pointer2null/weather/buffer"
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/buffer"
+	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/physic"
@@ -181,6 +181,7 @@ func (a *Anemometer) readDirection() float64 {
 	return deg
 }
 
+// This should be in an external config file...
 func voltToDegrees(v float64) (float64, string) {
 	// this is based on actual measurements of output voltage for each cardinal point
 	// threhold voltage is midway between the two recorded values.

@@ -3,8 +3,8 @@ package sensors
 import (
 	"testing"
 
-	"github.com/pointer2null/weather/buffer"
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/buffer"
+	"github.com/gr-butler/weather/env"
 	"github.com/stretchr/testify/require"
 )
 

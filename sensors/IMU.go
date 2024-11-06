@@ -3,7 +3,7 @@ package sensors
 import (
 	"math"
 
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 
 	"time"

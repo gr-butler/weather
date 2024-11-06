@@ -3,9 +3,9 @@ package sensors
 import (
 	"time"
 
-	"github.com/pointer2null/weather/buffer"
-	"github.com/pointer2null/weather/env"
-	"github.com/pointer2null/weather/led"
+	"github.com/gr-butler/weather/buffer"
+	"github.com/gr-butler/weather/env"
+	"github.com/gr-butler/weather/led"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"

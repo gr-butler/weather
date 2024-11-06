@@ -1,4 +1,4 @@
-module github.com/pointer2null/weather
+module github.com/gr-butler/weather
 
 go 1.21
 

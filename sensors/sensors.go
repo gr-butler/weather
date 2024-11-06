@@ -3,7 +3,7 @@ package sensors
 import (
 	"flag"
 
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"

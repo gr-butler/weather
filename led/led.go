@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 	"periph.io/x/periph/conn/gpio"
 	"periph.io/x/periph/conn/gpio/gpioreg"

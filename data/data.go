@@ -1,6 +1,6 @@
 package data
 
-import "github.com/pointer2null/weather/buffer"
+import "github.com/gr-butler/weather/buffer"
 
 // holder and processor for all the data being produced but the sensors
 

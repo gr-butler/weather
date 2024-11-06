@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/google/go-querystring/query"
-	"github.com/pointer2null/weather/db/postgres"
-	"github.com/pointer2null/weather/env"
+	"github.com/gr-butler/weather/db/postgres"
+	"github.com/gr-butler/weather/env"
 
 	logger "github.com/sirupsen/logrus"
 )
@@ -67,10 +66,10 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 type weatherData struct {
-	SiteId       string `url:"siteid,omitempty"`
-	AuthKey      string `url:"siteAuthenticationKey,omitempty"`
-	DateString   string `url:"dateutc,omitempty"`
-	SoftwareType string `url:"softwaretype,omitempty"`
+	SiteId       string `url:"siteid"`
+	AuthKey      string `url:"siteAuthenticationKey"`
+	DateString   string `url:"dateutc"`
+	SoftwareType string `url:"softwaretype"`
 	PressureHpa  float64
 	TempC        float64
 	RainMM       float64
@@ -111,7 +110,9 @@ func (w *weatherstation) Reporting() {
 	for t := range time.Tick(duration) {
 		func() {
 			data, msg := w.prepData()
-
+			// user info
+			data.SiteId = w.args.WowSiteID
+			data.AuthKey = w.args.WowPin
 			vals, _ := query.Values(data)
 
 			if *w.args.Verbose {
@@ -156,16 +157,12 @@ func (w *weatherstation) Reporting() {
 				}
 
 				if !(*w.args.NoWow) {
-					wowsiteid, idok := os.LookupEnv("WOWSITEID")
-					wowpin, pinok := os.LookupEnv("WOWPIN")
-					if !(idok && pinok) {
-						logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-						return
-					}
-					// user info
-					data.SiteId = wowsiteid
-					data.AuthKey = wowpin
-					logger.Infof("Sending data to met office [%v]", data)
+					// if !(idok && pinok) {
+					// 	logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
+					// 	return
+					// }
+
+					logger.Infof("Sending data to met office [%v]", *data)
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2
 					client := http.Client{Timeout: time.Second * 30}
@@ -176,7 +173,7 @@ func (w *weatherstation) Reporting() {
 					}
 					defer resp.Body.Close()
 					if resp.StatusCode != 200 {
-						logger.Errorf("Failed to POST data HTTP [%v]", resp.Status)
+						logger.Errorf("Failed to POST data HTTP [%v] \n Sent[%v]", resp.Status, vals.Encode())
 					}
 				}
 

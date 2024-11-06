@@ -11,4 +11,7 @@ type Args struct {
 	WindEnabled        *bool
 	AtmosphericEnabled *bool
 	RainEnabled        *bool
+	Humidity           *bool
+	WowSiteID          string
+	WowPin             string
 }
