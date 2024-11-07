@@ -1,8 +1,6 @@
 module github.com/gr-butler/weather
 
-go 1.22
-
-toolchain go1.23.1
+go 1.22.0
 
 require (
 	github.com/lib/pq v1.10.7
