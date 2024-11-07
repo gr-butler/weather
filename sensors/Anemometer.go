@@ -6,9 +6,9 @@ import (
 	"github.com/gr-butler/weather/buffer"
 	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/conn/physic"
-	"periph.io/x/periph/experimental/devices/ads1x15"
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/physic"
+	"periph.io/x/devices/v3/ads1x15"
 )
 
 type Anemometer struct {

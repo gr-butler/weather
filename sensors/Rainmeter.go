@@ -7,10 +7,10 @@ import (
 	"github.com/gr-butler/weather/env"
 	"github.com/gr-butler/weather/led"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/experimental/conn/gpio/gpioutil"
+	"periph.io/x/conn/v3/gpio"
+	"periph.io/x/conn/v3/gpio/gpioreg"
+	"periph.io/x/conn/v3/gpio/gpioutil"
+	"periph.io/x/conn/v3/i2c"
 )
 
 type rainmeter struct {

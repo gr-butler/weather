@@ -7,10 +7,11 @@ import (
 	// "github.com/gr-butler/devices/htu21df"
 	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/conn/physic"
-	"periph.io/x/periph/devices/bmxx80"
-	"periph.io/x/periph/experimental/devices/mcp9808"
+
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/physic"
+	"periph.io/x/devices/v3/bmxx80"
+	"periph.io/x/devices/v3/mcp9808"
 )
 
 const (

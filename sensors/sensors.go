@@ -5,9 +5,10 @@ import (
 
 	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/i2c"
-	"periph.io/x/periph/conn/i2c/i2creg"
-	"periph.io/x/periph/host"
+
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/i2c/i2creg"
+	"periph.io/x/host/v3"
 )
 
 type Sensors struct {

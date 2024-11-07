@@ -6,8 +6,8 @@ import (
 
 	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
-	"periph.io/x/periph/conn/gpio"
-	"periph.io/x/periph/conn/gpio/gpioreg"
+	"periph.io/x/conn/v3/gpio"
+	"periph.io/x/conn/v3/gpio/gpioreg"
 )
 
 type LED struct {
