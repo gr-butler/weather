@@ -4,7 +4,7 @@ import (
 	"flag"
 	"math"
 
-	// "github.com/gr-butler/devices/htu21df"
+	"github.com/gr-butler/devices/htu21d"
 	"github.com/gr-butler/weather/env"
 	logger "github.com/sirupsen/logrus"
 
@@ -62,6 +62,8 @@ func NewAtmosphere(bus *i2c.Bus, args env.Args) *atmosphere {
 		return nil
 	}
 	a.PH = bme
+
+	htu21d.NewI2C(*bus, 0x40, &htu21d.Opts{})
 
 	return a
 }

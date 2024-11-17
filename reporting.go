@@ -118,10 +118,6 @@ func (w *weatherstation) Reporting() {
 			if *w.args.Verbose {
 				logger.Infof("Sensor data: %v", msg)
 			}
-			if *w.args.Imuon {
-				x, y, z := w.s.IMU.ReadAccel(true)
-				logger.Infof("IMU x [%v], y [%v], z [%v]", x, y, z)
-			}
 			if *w.args.Test {
 				// flash LED's only
 				if w.HeartbeatLed.IsOn() {
@@ -131,17 +127,17 @@ func (w *weatherstation) Reporting() {
 				}
 			} else if t.Minute()%env.ReportFreqMin == 0 {
 
-				// if *w.args.RainEnabled {
-				// 	// get the rain accumulation since we last reported it
-				// 	data.RainIn = mmToIn(w.s.Rain.GetAccumulation().Float64())
-				// 	Prom_rainRatePerMin.Set(w.s.Rain.GetAccumulation().Float64())
-				// 	data.RainDayIn = mmToIn(w.s.Rain.GetDayAccumulation().Float64())
-				// 	if t.Minute() == 0 && t.Hour() == 9 {
-				// 		// reset daily rain accumulation
-				// 		w.s.Rain.ResetDayAccumulation()
-				// 		Prom_rainDayTotal.Set(0)
-				// 	}
-				// }
+				if *w.args.RainEnabled {
+					// get the rain accumulation since we last reported it
+					data.RainIn = mmToIn(w.s.Rain.GetAccumulation().Float64())
+					Prom_rainRatePerMin.Set(w.s.Rain.GetAccumulation().Float64())
+					data.RainDayIn = mmToIn(w.s.Rain.GetDayAccumulation().Float64())
+					if t.Minute() == 0 && t.Hour() == 9 {
+						// reset daily rain accumulation
+						w.s.Rain.ResetDayAccumulation()
+						Prom_rainDayTotal.Set(0)
+					}
+				}
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
@@ -157,11 +153,6 @@ func (w *weatherstation) Reporting() {
 				}
 
 				if !(*w.args.NoWow) {
-					// if !(idok && pinok) {
-					// 	logger.Error("SiteId and or pin not set! WOWSITEID and WOWPIN must be set.")
-					// 	return
-					// }
-
 					logger.Infof("Sending data to met office [%v]", *data)
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2

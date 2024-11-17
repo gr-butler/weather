@@ -131,7 +131,6 @@ func main() {
 	w.args.Test = flag.Bool("test", false, "runs in test mode")
 	w.args.NoWow = flag.Bool("nowow", false, "does not send met office data")
 	w.args.Verbose = flag.Bool("v", false, "verbose logging")
-	w.args.Imuon = flag.Bool("imu", false, "activates the IMU output")
 	w.args.Speedon = flag.Bool("speed", false, "show wind speed info")
 	w.args.Diron = flag.Bool("dir", false, "show wind direction")
 	w.args.Rainon = flag.Bool("rain", false, "show rain tip info")

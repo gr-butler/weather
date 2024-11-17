@@ -15,7 +15,6 @@ type Sensors struct {
 	Atm    *atmosphere
 	Rain   *rainmeter
 	Wind   *Anemometer
-	IMU    *IMU
 	Closer *i2c.BusCloser
 }
 
@@ -45,9 +44,6 @@ func InitSensors(args *env.Args) *Sensors {
 	}
 	if *args.WindEnabled {
 		s.Wind = NewAnemometer(&bus, *args)
-	}
-	if *args.Imuon {
-		s.IMU = NewIMU(&bus, *args)
 	}
 	return s
 }
