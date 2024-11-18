@@ -68,8 +68,8 @@ var Prom_rainRatePerMin = prometheus.NewGauge(
 	},
 )
 
-var Prom_rainDayTotal = prometheus.NewGauge(
-	prometheus.GaugeOpts{
+var Prom_rainDayTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
 		Name: "rain_day",
 		Help: "The rain total today (9.01am - 9am)",
 	},

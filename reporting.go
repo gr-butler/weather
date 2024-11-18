@@ -119,7 +119,6 @@ func (w *weatherstation) Reporting() {
 				// reset daily rain accumulation
 				logger.Info("Resetting daily rain accumulation")
 				w.s.Rain.ResetDayAccumulation()
-				Prom_rainDayTotal.Set(0)
 			}
 
 			if *w.args.Verbose {
@@ -236,8 +235,8 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		acc := w.s.Rain.GetDayAccumulation().Float64()
 		rainInch := mmToIn(acc)
 		wd.RainIn = rainInch
-		wd.RainDayIn = rainInch
-		Prom_rainDayTotal.Set(acc)
+		wd.RainDayIn = rainInch                                     // for MetOffice 9am to 9am accumulation
+		Prom_rainDayTotal.Add(w.s.Rain.GetAccumulation().Float64()) // GetAccumulation reads and resets the counter
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
 		logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
