@@ -48,6 +48,7 @@ type webdata struct {
 	Pressure  float64 `json:"pressure_hPa"`
 	RainHr    float64 `json:"rain_mm_hr"`
 	RainRate  float64 `json:"rain_rate"`
+	RainDay   float64 `json:"rain_day"`
 	WindDir   float64 `json:"wind_dir"`
 	WindSpeed float64 `json:"wind_speed"`
 	WindGust  float64 `json:"wind_gust"`
@@ -184,7 +185,7 @@ func main() {
 	go w.Reporting()
 
 	// start web service
-	logger.Info("Starting webservice...")
+	logger.Infof("[%v] Starting webservice...", version)
 	http.HandleFunc("/", w.handler)
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -211,6 +212,7 @@ func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 		Pressure:  pres.Float64(),
 		RainHr:    w.s.Rain.GetRate().Float64(),
 		RainRate:  w.s.Rain.GetMinuteRate().Float64(),
+		RainDay:   w.s.Rain.GetDayAccumulation().Float64(),
 		TimeNow:   time.Now().Format(time.RFC822),
 		WindDir:   w.s.Wind.GetDirection(),
 		WindSpeed: w.s.Wind.GetSpeed(),

@@ -55,8 +55,8 @@ func NewRainmeter(bus *i2c.Bus, args env.Args) *rainmeter {
 	logger.Infof("Rain Pin: %s: %s", rp, rp.Function())
 
 	// Set up debounced pin
-	// Ignore glitches lasting less than 100ms, and ignore repeated edges within 500ms.
-	rainpin, err := gpioutil.Debounce(rp, 100*time.Millisecond, 500*time.Millisecond, gpio.FallingEdge)
+	// Ignore glitches lasting less than 10ms, and ignore repeated edges within 500ms.
+	rainpin, err := gpioutil.Debounce(rp, 10*time.Millisecond, 500*time.Millisecond, gpio.FallingEdge)
 	if err != nil {
 		logger.Errorf("Failed to set debounce [%v]", err)
 		return nil
@@ -107,9 +107,9 @@ func (r *rainmeter) monitorRainGPIO() {
 				rainTip += 1             // for rates
 				r.dayAccumulation += 1   // for day
 				r.accumulationSince += 1 // for accumulations
-				if *r.args.Rainon {
-					logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
-				}
+
+				logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
+
 				r.ledOut.Flash()
 			}
 		}

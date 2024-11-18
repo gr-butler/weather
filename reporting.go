@@ -115,6 +115,13 @@ func (w *weatherstation) Reporting() {
 			data.AuthKey = w.args.WowPin
 			vals, _ := query.Values(data)
 
+			if t.Minute() == 0 && t.Hour() == 9 {
+				// reset daily rain accumulation
+				logger.Info("Resetting daily rain accumulation")
+				w.s.Rain.ResetDayAccumulation()
+				Prom_rainDayTotal.Set(0)
+			}
+
 			if *w.args.Verbose {
 				logger.Infof("Sensor data: %v", msg)
 			}
@@ -127,17 +134,6 @@ func (w *weatherstation) Reporting() {
 				}
 			} else if t.Minute()%env.ReportFreqMin == 0 {
 
-				if *w.args.RainEnabled {
-					// get the rain accumulation since we last reported it
-					data.RainIn = mmToIn(w.s.Rain.GetAccumulation().Float64())
-					Prom_rainRatePerMin.Set(w.s.Rain.GetAccumulation().Float64())
-					data.RainDayIn = mmToIn(w.s.Rain.GetDayAccumulation().Float64())
-					if t.Minute() == 0 && t.Hour() == 9 {
-						// reset daily rain accumulation
-						w.s.Rain.ResetDayAccumulation()
-						Prom_rainDayTotal.Set(0)
-					}
-				}
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
@@ -240,8 +236,10 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		acc := w.s.Rain.GetDayAccumulation().Float64()
 		rainInch := mmToIn(acc)
 		wd.RainIn = rainInch
-		Prom_rainDayTotal.Set(rainInch)
+		wd.RainDayIn = rainInch
+		Prom_rainDayTotal.Set(acc)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
+		logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
 	} else {
 		msg = msg + ", Rain accumulation [-]"
