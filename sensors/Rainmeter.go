@@ -38,7 +38,7 @@ func (m mm) Float64() float64 {
 }
 
 func toMM(v int64) mm {
-	return mm(v)
+	return mm(float64(v) * env.MmPerTip)
 }
 
 func NewRainmeter(bus *i2c.Bus, args env.Args) *rainmeter {

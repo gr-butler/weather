@@ -56,4 +56,7 @@ const (
 	// it is sampled at high frequency (every 0.25 sec)
 	WindSamplesPerSecond    = 4
 	WindBufferLengthSeconds = 60
+	// https://www.robotics.org.za/WH-SP-RG
+	// https://forum.mysensors.org/topic/9594/misol-rain-gauge-tipping-bucket-rain-amount
+	MmPerTip = 0.3537
 )

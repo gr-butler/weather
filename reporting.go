@@ -106,13 +106,13 @@ func (w *weatherstation) Reporting() {
 	if *w.args.Test {
 		duration = time.Second
 	}
-
+	wd := weatherData{}
+	// user info
+	wd.SiteId = w.args.WowSiteID
+	wd.AuthKey = w.args.WowPin
 	for t := range time.Tick(duration) {
 		func() {
-			data, msg := w.prepData()
-			// user info
-			data.SiteId = w.args.WowSiteID
-			data.AuthKey = w.args.WowPin
+			data, msg := w.prepData(wd)
 			vals, _ := query.Values(data)
 
 			if t.Minute() == 0 && t.Hour() == 9 {
@@ -148,7 +148,8 @@ func (w *weatherstation) Reporting() {
 				}
 
 				if !(*w.args.NoWow) {
-					logger.Infof("Sending data to met office [%v]", *data)
+					logger.Infof("Sending data to met office [%v]", data)
+
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2
 					client := http.Client{Timeout: time.Second * 30}
@@ -160,6 +161,9 @@ func (w *weatherstation) Reporting() {
 					defer resp.Body.Close()
 					if resp.StatusCode != 200 {
 						logger.Errorf("Failed to POST data HTTP [%v] \n Sent[%v]", resp.Status, vals.Encode())
+					} else {
+						// record sent, reset the rain accumulation
+						data.RainIn = 0
 					}
 				}
 
@@ -169,8 +173,7 @@ func (w *weatherstation) Reporting() {
 }
 
 // build the map with the required data
-func (w *weatherstation) prepData() (*weatherData, string) {
-	wd := weatherData{}
+func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 	msg := ""
 	// Timestamp
 	// go magic date is Mon Jan 2 15:04:05 MST 2006
@@ -232,11 +235,11 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 	if *w.args.RainEnabled {
 		// we have to work out the values we send to the met office when we send it as they
 		// what amount since last sent
-		acc := w.s.Rain.GetDayAccumulation().Float64()
+		acc := w.s.Rain.GetAccumulation().Float64() // GetAccumulation reads and resets the counter
 		rainInch := mmToIn(acc)
-		wd.RainIn = rainInch
-		wd.RainDayIn = rainInch                                     // for MetOffice 9am to 9am accumulation
-		Prom_rainDayTotal.Add(w.s.Rain.GetAccumulation().Float64()) // GetAccumulation reads and resets the counter
+		wd.RainIn += rainInch
+		// wd.RainDayIn = rainInch                                     // for MetOffice 9am to 9am accumulation
+		Prom_rainDayTotal.Add(acc)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
 		logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
@@ -262,7 +265,7 @@ func (w *weatherstation) prepData() (*weatherData, string) {
 		msg = msg + ", Dir [-], Speed [-], Gust [-]"
 	}
 
-	return &wd, msg
+	return wd, msg
 }
 
 func ctof(c float64) float64 {
