@@ -102,6 +102,11 @@ func (w *weatherstation) Reporting() {
 		}
 	}()
 
+	// Set some sensible initial values so we don't get daft prom values
+	Prom_atmPresure.Set(1000.0)
+	Prom_humidity.Set(90)
+	Prom_temperature.Set(10)
+
 	duration := time.Minute
 	if *w.args.Test {
 		duration = time.Second
