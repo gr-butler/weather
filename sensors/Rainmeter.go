@@ -19,7 +19,7 @@ type rainmeter struct {
 	accumulationSince int64
 	ledOut            *led.LED
 	tipBuf            *buffer.SampleBuffer
-	args              env.Args
+	args              *env.Args
 }
 
 type mmHr float64
@@ -41,14 +41,16 @@ func toMM(v int64) mm {
 	return mm(float64(v) * env.MmPerTip)
 }
 
-func NewRainmeter(bus *i2c.Bus, args env.Args) *rainmeter {
+func NewRainmeter(bus *i2c.Bus, args *env.Args) *rainmeter {
 	r := &rainmeter{}
 	r.args = args
+	r.args.RainEnabled = &env.Disabled
 
 	// Lookup a rainpin by its number:
 	rp := gpioreg.ByName(env.RainSensorIn)
 	if rp == nil {
 		logger.Errorf("Failed to find %v - rain pin", env.RainSensorIn)
+
 		return nil
 	}
 
@@ -68,17 +70,19 @@ func NewRainmeter(bus *i2c.Bus, args env.Args) *rainmeter {
 	// every 10 seconds for last hour = 3600 / 10 = 360
 	r.tipBuf = buffer.NewBuffer(360)
 	r.monitorRainGPIO()
+	r.args.RainEnabled = &env.Enabled
+	logger.Info("Rain sensor online")
 	return r
 }
 
 func (r *rainmeter) GetRate() mmHr {
 	_, _, _, sum := r.tipBuf.GetAverageMinMaxSum()
-	return toMMHr(env.MMPerBucketTip * float64(sum))
+	return toMMHr(env.MmPerTip * float64(sum))
 }
 
 func (r *rainmeter) GetMinuteRate() mm {
 	sum, _, _ := r.tipBuf.SumMinMaxLast(6) // last minute
-	return mm(int64(env.MMPerBucketTip * sum))
+	return mm(int64(env.MmPerTip * sum))
 }
 
 func (r *rainmeter) GetDayAccumulation() mm {

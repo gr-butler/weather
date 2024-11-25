@@ -37,13 +37,13 @@ func InitSensors(args *env.Args) *Sensors {
 	bus := i2c.Bus(closer)
 
 	if *args.AtmosphericEnabled {
-		s.Atm = NewAtmosphere(&bus, *args)
+		s.Atm = NewAtmosphere(&bus, args)
 	}
 	if *args.RainEnabled {
-		s.Rain = NewRainmeter(&bus, *args)
+		s.Rain = NewRainmeter(&bus, args)
 	}
 	if *args.WindEnabled {
-		s.Wind = NewAnemometer(&bus, *args)
+		s.Wind = NewAnemometer(&bus, args)
 	}
 	return s
 }

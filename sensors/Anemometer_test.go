@@ -16,7 +16,7 @@ func Test_anemometer_GetSpeed(t *testing.T) {
 		gustBuf:  buffer.NewBuffer(env.WindSamplesPerSecond * env.WindBufferLengthSeconds),
 		dirBuf:   &buffer.SampleBuffer{},
 		masthead: nil,
-		args:     env.Args{},
+		args:     &env.Args{},
 	}
 
 	s := a.GetSpeed()

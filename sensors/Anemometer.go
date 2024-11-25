@@ -19,15 +19,16 @@ type Anemometer struct {
 	dirBuf   *buffer.SampleBuffer
 	DirStr   string
 	masthead *i2c.Dev
-	args     env.Args
+	args     *env.Args
 }
 
 var lastVal float64 = 0
 
-func NewAnemometer(bus *i2c.Bus, args env.Args) *Anemometer {
+func NewAnemometer(bus *i2c.Bus, args *env.Args) *Anemometer {
 	a := &Anemometer{}
 	a.args = args
 	a.Bus = bus
+	a.args.WindEnabled = &env.Disabled
 
 	logger.Infof("Starting Masthead I2C [%x] Speed test flag is %v", env.MastHead, *a.args.Speedon)
 	a.masthead = &i2c.Dev{Addr: env.MastHead, Bus: *bus}
@@ -64,21 +65,22 @@ func NewAnemometer(bus *i2c.Bus, args env.Args) *Anemometer {
 	a.dirBuf = buffer.NewBuffer(sps * env.WindBufferLengthSeconds)
 
 	a.monitorWindGPIO()
-
+	a.args.WindEnabled = &env.Enabled
+	logger.Info("Wind sensor online")
 	return a
 }
 
 func (a *Anemometer) monitorWindGPIO() {
 	logger.Info("Starting wind sensor")
 
-	period := time.Millisecond * (time.Second / time.Millisecond / env.WindSamplesPerSecond)
+	period := time.Millisecond * 1000 / env.WindSamplesPerSecond
 	if *a.args.Test {
 		logger.Info("Wind sensor period set to 1 second for test")
 		period = time.Second * 1
 	}
 
 	go func() {
-		// record the count every 250ms
+		// record the count every
 		write := []byte{0x00} // we don't need to send any command
 		read := make([]byte, 2)
 		for range time.Tick(period) {

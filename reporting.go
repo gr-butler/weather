@@ -105,7 +105,6 @@ func (w *weatherstation) Reporting() {
 	// Set some sensible initial values so we don't get daft prom values
 	Prom_atmPresure.Set(1000.0)
 	Prom_humidity.Set(90)
-	Prom_temperature.Set(10)
 
 	duration := time.Minute
 	if *w.args.Test {
@@ -120,7 +119,7 @@ func (w *weatherstation) Reporting() {
 			data, msg := w.prepData(wd)
 			vals, _ := query.Values(data)
 
-			if t.Minute() == 0 && t.Hour() == 9 {
+			if t.Minute() == 0 && t.Hour() == 9 && *w.args.RainEnabled {
 				// reset daily rain accumulation
 				logger.Info("Resetting daily rain accumulation")
 				w.s.Rain.ResetDayAccumulation()
@@ -246,7 +245,9 @@ func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 		// wd.RainDayIn = rainInch                                     // for MetOffice 9am to 9am accumulation
 		Prom_rainDayTotal.Add(acc)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
-		logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
+		if *w.args.Verbose {
+			logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
+		}
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
 	} else {
 		msg = msg + ", Rain accumulation [-]"

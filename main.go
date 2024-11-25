@@ -145,6 +145,7 @@ func main() {
 	wowpin, pinok := os.LookupEnv("WOWPIN")
 	if !idok || !pinok {
 		logger.Warn("Missing WOW details")
+		w.args.NoWow = &env.Enabled
 	}
 	w.args.WowPin = wowpin
 	w.args.WowSiteID = wowsiteid

@@ -39,8 +39,7 @@ const (
 	HeartbeatLed = GPIO20
 	RainTipLed   = GPIO19
 
-	MphPerTick     = 1.429
-	MMPerBucketTip = 0.2794
+	MphPerTick = 1.429
 
 	HPaToInHg     = 0.02953
 	MmToInch      = 25.4
@@ -60,3 +59,6 @@ const (
 	// https://forum.mysensors.org/topic/9594/misol-rain-gauge-tipping-bucket-rain-amount
 	MmPerTip = 0.3537
 )
+
+var Disabled = false
+var Enabled = true
