@@ -1,11 +1,13 @@
 package main
 
 import (
+	// "context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	// "os/signal"
 	"time"
 
 	"database/sql"
@@ -230,3 +232,19 @@ func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 	logger.Infof("Web read: \n[%v]", string(js))
 	_, _ = rw.Write(js) // not much we can do if this fails
 }
+
+// GetInterruptContext gives a context that will call cancel() when an os.Interupt is signalled
+// func getInterruptContext() context.Context {
+// 	ctx, cancel := context.WithCancel(context.Background())
+
+// 	sigChan := make(chan os.Signal, 1)
+// 	signal.Notify(sigChan, os.Interrupt)
+
+// 	go func() {
+// 		<-sigChan
+// 		logger.Info("SIGTERM received, stopping...")
+// 		cancel()
+// 	}()
+
+// 	return ctx
+// }

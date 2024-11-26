@@ -66,22 +66,22 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
 
 type weatherData struct {
-	SiteId       string `url:"siteid"`
-	AuthKey      string `url:"siteAuthenticationKey"`
-	DateString   string `url:"dateutc"`
-	SoftwareType string `url:"softwaretype"`
-	PressureHpa  float64
-	TempC        float64
-	RainMM       float64
-	RainDayIn    float64 `url:"dailyrainin,omitempty"`
-	PressureIn   float64 `url:"baromin,omitempty"`
-	Humidity     float64 `url:"humidity,omitempty"`
-	TempF        float64 `url:"tempf,omitempty"`
-	DewPointF    float64 `url:"dewptf,omitempty"`
-	RainIn       float64 `url:"rainin,omitempty"`
-	WindDir      float64 `url:"winddir,omitempty"`
-	WindSpeedMph float64 `url:"windspeedmph,omitempty"`
-	WindGustMph  float64 `url:"windgustmph,omitempty"`
+	SiteId       string  `url:"siteid"`
+	AuthKey      string  `url:"siteAuthenticationKey"`
+	DateString   string  `url:"dateutc"`
+	SoftwareType string  `url:"softwaretype"`
+	PressureHpa  float64 `url:"-"`
+	TempC        float64 `url:"-"`
+	RainMM       float64 `url:"-"`
+	RainDayIn    float64 `url:"dailyrainin"`
+	PressureIn   float64 `url:"baromin"`
+	Humidity     float64 `url:"humidity"`
+	TempF        float64 `url:"tempf"`
+	DewPointF    float64 `url:"dewptf"`
+	RainIn       float64 `url:"rainin"`
+	WindDir      float64 `url:"winddir"`
+	WindSpeedMph float64 `url:"windspeedmph"`
+	WindGustMph  float64 `url:"windgustmph"`
 }
 
 // Reporting called as a go routine:
@@ -123,6 +123,7 @@ func (w *weatherstation) Reporting() {
 				// reset daily rain accumulation
 				logger.Info("Resetting daily rain accumulation")
 				w.s.Rain.ResetDayAccumulation()
+				data.RainDayIn = 0
 			}
 
 			if *w.args.Verbose {
@@ -152,7 +153,7 @@ func (w *weatherstation) Reporting() {
 				}
 
 				if !(*w.args.NoWow) {
-					logger.Infof("Sending data to met office [%v]", data)
+					logger.Infof("Sending data to met office [%v]\n[%v]", data, vals.Encode())
 
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2
@@ -168,6 +169,7 @@ func (w *weatherstation) Reporting() {
 					} else {
 						// record sent, reset the rain accumulation
 						data.RainIn = 0
+						data.RainMM = 0
 					}
 				}
 
@@ -240,9 +242,10 @@ func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 		// we have to work out the values we send to the met office when we send it as they
 		// what amount since last sent
 		acc := w.s.Rain.GetAccumulation().Float64() // GetAccumulation reads and resets the counter
+		wd.RainMM += acc
 		rainInch := mmToIn(acc)
 		wd.RainIn += rainInch
-		// wd.RainDayIn = rainInch                                     // for MetOffice 9am to 9am accumulation
+		wd.RainDayIn += rainInch
 		Prom_rainDayTotal.Add(acc)
 		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
 		if *w.args.Verbose {
