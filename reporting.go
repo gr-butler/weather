@@ -84,6 +84,8 @@ type weatherData struct {
 	WindGustMph  float64 `url:"windgustmph"`
 }
 
+var wd = weatherData{}
+
 // Reporting called as a go routine:
 // * send data to the wow url every reportFreqMin mins
 // * update grafana endpoints
@@ -110,7 +112,7 @@ func (w *weatherstation) Reporting() {
 	if *w.args.Test {
 		duration = time.Second
 	}
-	wd := weatherData{}
+
 	// user info
 	wd.SiteId = w.args.WowSiteID
 	wd.AuthKey = w.args.WowPin
@@ -154,7 +156,7 @@ func (w *weatherstation) Reporting() {
 
 				if !(*w.args.NoWow) {
 					logger.Infof("Sending data to met office [%v]\n[%v]", data, vals.Encode())
-
+					logger.Infof("Sensor data: %v", msg)
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2
 					client := http.Client{Timeout: time.Second * 30}
@@ -251,7 +253,7 @@ func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 		if *w.args.Verbose {
 			logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
 		}
-		msg = msg + fmt.Sprintf(", Rain accumulation [%v]", acc)
+		msg = msg + fmt.Sprintf(", Rain accumulation [%v] (RainIn  [%v]) (DayIn [%v])", acc, wd.RainIn, wd.RainDayIn)
 	} else {
 		msg = msg + ", Rain accumulation [-]"
 	}
