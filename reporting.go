@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/go-querystring/query"
@@ -64,6 +66,7 @@ windgustmph 	Current Wind Gust (using software specific time period) 			Miles pe
 //PressureinHg = 29.92 * ( Pressurehpa / 1013.2) = 0.02953 * Pressurehpa
 
 const baseUrl = "http://wow.metoffice.gov.uk/automaticreading?"
+const dataFilePath = "/tmp/weatherData.json"
 
 type weatherData struct {
 	SiteId       string  `url:"siteid"`
@@ -85,6 +88,28 @@ type weatherData struct {
 }
 
 var wd = weatherData{}
+
+// Save weatherData to file
+func saveWeatherData(wd *weatherData) error {
+	file, err := os.Create(dataFilePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(wd)
+}
+
+// Load weatherData from file
+func loadWeatherData() (*weatherData, error) {
+	file, err := os.Open(dataFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	var wd weatherData
+	err = json.NewDecoder(file).Decode(&wd)
+	return &wd, err
+}
 
 // Reporting called as a go routine:
 // * send data to the wow url every reportFreqMin mins
@@ -113,19 +138,57 @@ func (w *weatherstation) Reporting() {
 		duration = time.Second
 	}
 
+	// Load weatherData from file
+	loadedWd, err := loadWeatherData()
+	if err == nil {
+		wd = *loadedWd
+	} else {
+		logger.Errorf("Failed to load weather data: %v", err)
+	}
+
 	// user info
 	wd.SiteId = w.args.WowSiteID
 	wd.AuthKey = w.args.WowPin
 	for t := range time.Tick(duration) {
 		func() {
-			data, msg := w.prepData(wd)
-			vals, _ := query.Values(data)
+			msg := w.prepData(&wd)
+			vals, _ := query.Values(wd)
+
+			// send mqtt message with weather data
+			// json format, {"ip_address": "x.x.x.x", "time": "18:46:22 15/08/2025", + rain, temp, wind & humidity
+			if w.client != nil {
+				dataMap := map[string]interface{}{
+					"ip_address": GetOutboundIP().String(),
+					"time":       time.Now().Format("15:04:05 02/01/2006"),
+					"rain":       fmt.Sprintf("%.2f", wd.RainMM),
+					"temp":       fmt.Sprintf("%.2f", wd.TempC),
+					"windspeed":  fmt.Sprintf("%.2f", wd.WindSpeedMph),
+					"windgust":   fmt.Sprintf("%.2f", wd.WindGustMph),
+					"winddir":    fmt.Sprintf("%.2f", wd.WindDir),
+					"humidity":   fmt.Sprintf("%.2f", wd.Humidity),
+				}
+				dataBytes, err := json.Marshal(dataMap)
+				if err != nil {
+					logger.Errorf("Failed to marshal weather data to JSON: %v", err)
+					return
+				}
+				data := string(dataBytes)
+				token := w.client.Publish(topic, 0, false, data)
+				go func() {
+					token.Wait()
+					if token.Error() != nil {
+						logger.Errorf("Failed to publish message: %v", token.Error())
+					} else {
+						logger.Infof("Message published successfully to topic %v", topic)
+					}
+				}()
+			}
 
 			if t.Minute() == 0 && t.Hour() == 9 && *w.args.RainEnabled {
 				// reset daily rain accumulation
 				logger.Info("Resetting daily rain accumulation")
 				w.s.Rain.ResetDayAccumulation()
-				data.RainDayIn = 0
+				wd.RainDayIn = 0
 			}
 
 			if *w.args.Verbose {
@@ -143,19 +206,19 @@ func (w *weatherstation) Reporting() {
 				// write data to db
 				logger.Info("Saving record to db")
 				err := w.Db.WriteRecord(context.Background(), postgres.WriteRecordParams{
-					Temperature:   data.TempC,
-					Pressure:      data.PressureHpa,
-					RainMm:        data.RainMM,
-					WindSpeed:     data.WindSpeedMph,
-					WindGust:      data.WindGustMph,
-					WindDirection: data.WindDir,
+					Temperature:   wd.TempC,
+					Pressure:      wd.PressureHpa,
+					RainMm:        wd.RainMM,
+					WindSpeed:     wd.WindSpeedMph,
+					WindGust:      wd.WindGustMph,
+					WindDirection: wd.WindDir,
 				})
 				if err != nil {
 					logger.Errorf("Failed to write to db [%v]", err)
 				}
 
 				if !(*w.args.NoWow) {
-					logger.Infof("Sending data to met office [%v]\n[%v]", data, vals.Encode())
+					logger.Infof("Sending data to met office [%v]\n[%v]", wd, vals.Encode())
 					logger.Infof("Sensor data: %v", msg)
 					// Metoffice accepts a GET... which is easier so wtf
 					http.DefaultClient.Timeout = time.Minute * 2
@@ -170,18 +233,24 @@ func (w *weatherstation) Reporting() {
 						logger.Errorf("Failed to POST data HTTP [%v] \n Sent[%v]", resp.Status, vals.Encode())
 					} else {
 						// record sent, reset the rain accumulation
-						data.RainIn = 0
-						data.RainMM = 0
+						logger.Info("Resetting rainIn counter")
+						wd.RainIn = 0
+						wd.RainMM = 0
 					}
 				}
 
+				// Save weatherData to file
+				err = saveWeatherData(&wd)
+				if err != nil {
+					logger.Errorf("Failed to save weather data: %v", err)
+				}
 			}
 		}()
 	}
 }
 
 // build the map with the required data
-func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
+func (w *weatherstation) prepData(wd *weatherData) string {
 	msg := ""
 	// Timestamp
 	// go magic date is Mon Jan 2 15:04:05 MST 2006
@@ -249,10 +318,10 @@ func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 		wd.RainIn += rainInch
 		wd.RainDayIn += rainInch
 		Prom_rainDayTotal.Add(acc)
-		Prom_rainRatePerMin.Set(w.s.Rain.GetMinuteRate().Float64())
-		if *w.args.Verbose {
-			logger.Infof("Rain rate per min [%v]", w.s.Rain.GetMinuteRate().Float64())
-		}
+		Prom_rainRatePerMin.Set(w.s.Rain.GetRate().Float64())
+		// if *w.args.Verbose {
+		logger.Infof("Rain rate per hour [%v] acc [%v] wd.rainIn [%v]", w.s.Rain.GetRate().Float64(), acc, wd.RainIn)
+		// }
 		msg = msg + fmt.Sprintf(", Rain accumulation [%v] (RainIn  [%v]) (DayIn [%v])", acc, wd.RainIn, wd.RainDayIn)
 	} else {
 		msg = msg + ", Rain accumulation [-]"
@@ -276,7 +345,7 @@ func (w *weatherstation) prepData(wd weatherData) (weatherData, string) {
 		msg = msg + ", Dir [-], Speed [-], Gust [-]"
 	}
 
-	return wd, msg
+	return msg
 }
 
 func ctof(c float64) float64 {

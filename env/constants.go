@@ -43,7 +43,7 @@ const (
 
 	HPaToInHg     = 0.02953
 	MmToInch      = 25.4
-	ReportFreqMin = 10
+	ReportFreqMin = 15
 
 	LEDFlashDuration = time.Millisecond * 50
 

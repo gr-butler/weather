@@ -13,3 +13,5 @@ INSERT INTO weather (
 ) VALUES (
     now(), $1, $2, $3, $4, $5, $6
 );
+
+

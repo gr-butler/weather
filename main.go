@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+
 	// "os/signal"
 	"time"
 
@@ -22,20 +24,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+
 	logger "github.com/sirupsen/logrus"
 )
 
 const version = "GRB-Weather-2.1.0"
 
 const (
-	host     = "192.168.1.212"
+	host     = "server.internal"
 	port     = 5432
 	user     = "weather"
 	password = "weather01."
 	dbname   = "weather"
+	broker   = "tcp://server.internal:1883"
+	clientID = "weather-mqtt-client"
+	topic    = "culverhay/weather"
 )
 
 type weatherstation struct {
+	client       mqtt.Client
 	s            *sensors.Sensors
 	data         *data.WeatherData
 	Db           *postgres.Queries
@@ -112,6 +120,22 @@ var Prom_windDirection = prometheus.NewGauge(
 	},
 )
 
+var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
+	logger.Info("Connected to MQTT Broker")
+}
+
+var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
+	logger.Errorf("Connection lost: %v", err)
+
+	client.Disconnect(250) // Gracefully disconnect
+	// Attempt to reconnect
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		logger.Errorf("Failed to reconnect to MQTT broker: %v", token.Error())
+	} else {
+		logger.Info("Reconnected to MQTT Broker")
+	}
+}
+
 // called by prometheus
 func init() {
 	logger.Infof("%v: Initialize prometheus...", time.Now().Format(time.RFC822))
@@ -124,6 +148,20 @@ func init() {
 		Prom_windspeed,
 		Prom_windgust,
 		Prom_windDirection)
+}
+
+// Get preferred outbound ip of this machine
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		logger.Errorf("Failed to get outbound IP: %v", err)
+		return nil // Return nil if unable to determine IP
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
 
 func main() {
@@ -187,6 +225,20 @@ func main() {
 
 	go w.Reporting()
 
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(broker)
+	opts.SetClientID(clientID)
+	opts.SetKeepAlive(30)
+	opts.SetPingTimeout(10 * time.Second)
+	opts.OnConnect = connectHandler
+	opts.OnConnectionLost = connectLostHandler
+
+	w.client = mqtt.NewClient(opts)
+	if token := w.client.Connect(); token.Wait() && token.Error() != nil {
+		logger.Errorf("Failed to connect to MQTT broker: %v", token.Error())
+		w.client = nil
+	}
+
 	// start web service
 	logger.Infof("[%v] Starting webservice...", version)
 	http.HandleFunc("/", w.handler)
@@ -214,7 +266,6 @@ func (w *weatherstation) handler(rw http.ResponseWriter, r *http.Request) {
 		Humidity:  hum.Float64(),
 		Pressure:  pres.Float64(),
 		RainHr:    w.s.Rain.GetRate().Float64(),
-		RainRate:  w.s.Rain.GetMinuteRate().Float64(),
 		RainDay:   w.s.Rain.GetDayAccumulation().Float64(),
 		TimeNow:   time.Now().Format(time.RFC822),
 		WindDir:   w.s.Wind.GetDirection(),

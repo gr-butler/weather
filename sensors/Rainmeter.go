@@ -67,8 +67,8 @@ func NewRainmeter(bus *i2c.Bus, args *env.Args) *rainmeter {
 
 	r.ledOut = led.NewLED("Rain Tip", env.RainTipLed)
 
-	// every 10 seconds for last hour = 3600 / 10 = 360
-	r.tipBuf = buffer.NewBuffer(360)
+	// every minute for last hour = 60
+	r.tipBuf = buffer.NewBuffer(60)
 	r.monitorRainGPIO()
 	r.args.RainEnabled = &env.Enabled
 	logger.Info("Rain sensor online")
@@ -78,11 +78,6 @@ func NewRainmeter(bus *i2c.Bus, args *env.Args) *rainmeter {
 func (r *rainmeter) GetRate() mmHr {
 	_, _, _, sum := r.tipBuf.GetAverageMinMaxSum()
 	return toMMHr(env.MmPerTip * float64(sum))
-}
-
-func (r *rainmeter) GetMinuteRate() mm {
-	sum, _, _ := r.tipBuf.SumMinMaxLast(6) // last minute
-	return mm(int64(env.MmPerTip * sum))
 }
 
 func (r *rainmeter) GetDayAccumulation() mm {
@@ -112,15 +107,15 @@ func (r *rainmeter) monitorRainGPIO() {
 				r.dayAccumulation += 1   // for day
 				r.accumulationSince += 1 // for accumulations
 
-				logger.Infof("Bucket tip. [%v] @ %v", rainTip, time.Now().Format(time.ANSIC))
+				logger.Infof("Bucket tip. [%v] @ %v (day [%v], since [%v])", rainTip, time.Now().Format(time.ANSIC), r.dayAccumulation, r.accumulationSince)
 
 				r.ledOut.Flash()
 			}
 		}
 	}()
 	go func() {
-		// record the count every ten seconds
-		for range time.Tick(time.Second * 10) {
+		// record the count every minute
+		for range time.Tick(time.Minute) {
 			r.tipBuf.AddItem(float64(rainTip))
 			rainTip = 0
 		}
