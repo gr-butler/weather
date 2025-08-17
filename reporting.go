@@ -174,14 +174,20 @@ func (w *weatherstation) Reporting() {
 				}
 				data := string(dataBytes)
 				token := w.client.Publish(topic, 0, false, data)
-				go func() {
-					token.Wait()
-					if token.Error() != nil {
-						logger.Errorf("Failed to publish message: %v", token.Error())
-					} else {
-						logger.Infof("Message published successfully to topic %v", topic)
+				ctx, cnx := context.WithTimeout(context.Background(), time.Second*30)
+				go func(ctx context.Context, cnx context.CancelFunc) {
+					select {
+					case <-ctx.Done():
+						logger.Errorf("Publish to MQTT topic %v timed out after 30s", topic)
+					case <-token.Done():
+						if token.Error() != nil {
+							logger.Errorf("Failed to publish message: %v", token.Error())
+						} else {
+							logger.Infof("Message published successfully to topic %v", topic)
+						}
 					}
-				}()
+					cnx()
+				}(ctx, cnx)
 			}
 
 			if t.Minute() == 0 && t.Hour() == 9 && *w.args.RainEnabled {

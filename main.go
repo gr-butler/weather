@@ -29,7 +29,9 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
-const version = "GRB-Weather-2.1.0"
+const version = "GRB-Weather-2.2.0"
+
+// 2.2.0 added mqtt
 
 const (
 	host     = "server.internal"
