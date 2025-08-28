@@ -232,13 +232,13 @@ func main() {
 	opts.SetClientID(clientID)
 	opts.SetKeepAlive(30)
 	opts.SetPingTimeout(10 * time.Second)
+	opts.AutoReconnect = true
 	opts.OnConnect = connectHandler
 	opts.OnConnectionLost = connectLostHandler
 
 	w.client = mqtt.NewClient(opts)
 	if token := w.client.Connect(); token.Wait() && token.Error() != nil {
 		logger.Errorf("Failed to connect to MQTT broker: %v", token.Error())
-		w.client = nil
 	}
 
 	// start web service

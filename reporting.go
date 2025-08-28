@@ -158,6 +158,7 @@ func (w *weatherstation) Reporting() {
 			// json format, {"ip_address": "x.x.x.x", "time": "18:46:22 15/08/2025", + rain, temp, wind & humidity
 			if w.client != nil {
 				dataMap := map[string]interface{}{
+					"name":       "weather_station",
 					"ip_address": GetOutboundIP().String(),
 					"time":       time.Now().Format("15:04:05 02/01/2006"),
 					"rain":       fmt.Sprintf("%.2f", wd.RainMM),
@@ -188,6 +189,18 @@ func (w *weatherstation) Reporting() {
 					}
 					cnx()
 				}(ctx, cnx)
+			} else {
+				logger.Warn("MQTT client is not connected")
+				// reconnect client
+				go func() {
+					for !w.client.IsConnected() {
+						logger.Warn("MQTT client is not connected, attempting to reconnect...")
+						err := w.client.Connect()
+						if err != nil {
+							logger.Errorf("Failed to reconnect MQTT client: %v", err)
+						}
+					}
+				}()
 			}
 
 			if t.Minute() == 0 && t.Hour() == 9 && *w.args.RainEnabled {
